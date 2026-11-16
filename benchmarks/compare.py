@@ -68,7 +68,9 @@ def main():
     parser.add_argument('--mib', type=int, default=2048)
     parser.add_argument('--runs', type=int, default=8, help='paired blocks per provider')
     parser.add_argument('--warmup-mib', type=int, default=128)
-    parser.add_argument('--chunk-bytes', type=int, default=32768)
+    parser.add_argument('--mode', choices=['file', 'live'], default='file')
+    parser.add_argument('--encryption', choices=['none', 'aes-128-ctr'], default='none')
+    parser.add_argument('--chunk-bytes', type=int, help='default: 32768 File, 1316 Live')
     parser.add_argument('--wait', choices=['yield', 'poll'], default='poll')
     parser.add_argument('--direct-poll-api', choices=['uwait', 'legacy'], default='uwait')
     parser.add_argument('--probe-calls', type=int, default=100000)
@@ -79,6 +81,13 @@ def main():
     parser.add_argument('--cpus', help='Linux CPU set for all benchmark and vendor threads, e.g. 2,3,4,5')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if args.chunk_bytes is None:
+        args.chunk_bytes = 1316 if args.mode == 'live' else 32768
+    if args.mode == 'live' and not 8 <= args.chunk_bytes <= 1456:
+        parser.error('Live message payload must be 8..1456 bytes')
+    expected_bytes = args.mib*1024*1024
+    if args.mode == 'live':
+        expected_bytes = expected_bytes//args.chunk_bytes*args.chunk_bytes
     if not 1 <= args.mib <= 4096 or args.runs < 1 or not 0 <= args.warmup_mib <= 4096:
         parser.error('invalid trial count/size')
     if not 1 <= args.chunk_bytes <= 1048576 or not 0 <= args.probe_calls <= 10000000:
@@ -109,7 +118,8 @@ def main():
     env = dict(os.environ, SRTMUX_BENCH_POLL=str(int(args.wait == 'poll')),
         SRTMUX_BENCH_WARMUP_MIB=str(args.warmup_mib), SRTMUX_BENCH_CHUNK=str(args.chunk_bytes),
         SRTMUX_BENCH_PROBES=str(args.probe_calls),
-        SRTMUX_BENCH_NATIVE_LEGACY=str(int(args.direct_poll_api == 'legacy')))
+        SRTMUX_BENCH_NATIVE_LEGACY=str(int(args.direct_poll_api == 'legacy')),
+        SRTMUX_BENCH_LIVE=str(int(args.mode == 'live')), SRTMUX_BENCH_ENCRYPTED=str(int(args.encryption != 'none')))
     rng = random.Random(157033)
     orders = list(itertools.permutations(PATHS))
     rng.shuffle(orders)
@@ -122,10 +132,12 @@ def main():
     report = {'schema': 2, 'environment': {'platform': platform.platform(), 'machine': platform.machine(),
         'cpu_count': os.cpu_count(), 'affinity': sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
         'isolation': 'No exclusive-host or thermal-control claim; no other task-owned workloads during capture'},
-        'profile': {'mode': 'File/IPv4/plaintext', 'mib': args.mib, 'warmup_mib': args.warmup_mib,
+        'profile': {'mode': args.mode+'/IPv4/'+args.encryption, 'bytes': expected_bytes,
+            'encryption': args.encryption, 'latency_ms': 120 if args.mode == 'live' else 0, 'mib': args.mib, 'warmup_mib': args.warmup_mib,
             'chunk_bytes': args.chunk_bytes, 'wait': args.wait, 'probe_calls': args.probe_calls,
             'direct_poll_api': args.direct_poll_api,
-            'accounting': 'disabled', 'payload': 'all received bytes verified'},
+            'accounting': 'disabled', 'payload': 'all received bytes verified; Live sequence and boundaries checked',
+            'offered_load': 'unpaced, native nonblocking backpressure; no application rate cap'},
         'controls': {'blocks': args.runs, 'min_seconds': args.min_seconds, 'max_baseline_cv': args.max_baseline_cv,
             'throughput_budget_percent': args.throughput_budget, 'cpu_budget_percent': args.cpu_budget,
             'statistic': 'paired geometric mean ratios; 10000 paired bootstrap draws, percentile 95% CI; no exclusions',
@@ -151,7 +163,7 @@ def main():
             if completed.returncode:
                 raise RuntimeError(f'{provider}/{path}: '+completed.stderr[-4000:])
             sample = json.loads(completed.stdout.splitlines()[-1])
-            if sample['provider'] != provider or sample['path'] != path or sample['bytes'] != args.mib*1024*1024:
+            if sample['provider'] != provider or sample['path'] != path or sample['bytes'] != expected_bytes or sample['mode'] != args.mode or sample['encryption'] != args.encryption:
                 raise RuntimeError('benchmark result identity/byte count mismatch')
             sample.update(block=block, started_unix=started)
             report['samples'].append(sample); save()

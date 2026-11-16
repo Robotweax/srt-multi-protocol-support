@@ -78,3 +78,21 @@ if(SRTMUX_BUILD_PROVIDERS)
       $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision>)
   endif()
 endif()
+
+# Functional smoke checks only: short trials intentionally cannot pass performance gates.
+if(SRTMUX_BUILD_PROVIDERS AND SRTMUX_BUILD_BENCHMARKS)
+  foreach(profile IN ITEMS file_aes128 live_plain live_aes128)
+    set(mode live)
+    set(encryption aes-128-ctr)
+    if(profile STREQUAL "file_aes128")
+      set(mode file)
+    elseif(profile STREQUAL "live_plain")
+      set(encryption none)
+    endif()
+    add_test(NAME benchmark_${profile} COMMAND ${Python3_EXECUTABLE}
+      "${PROJECT_SOURCE_DIR}/benchmarks/compare.py" --build "${PROJECT_BINARY_DIR}"
+      --mode ${mode} --encryption ${encryption} --mib 4 --runs 1
+      --warmup-mib 1 --probe-calls 0 --output "${PROJECT_BINARY_DIR}/smoke-${profile}.json")
+    set_tests_properties(benchmark_${profile} PROPERTIES TIMEOUT 180)
+  endforeach()
+endif()

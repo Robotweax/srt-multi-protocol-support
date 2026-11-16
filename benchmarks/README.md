@@ -11,9 +11,20 @@ python3 benchmarks/compare.py --build build-real --mib 2048 --runs 8 \
 
 The runner always includes Robotweax 0.3.3 and Haivision 1.5.7, each using direct
 native calls, the module C ABI, and the C++ facade. Each trial is a fresh process
-with one local IPv4 File stream, plaintext, accounting disabled, 32 KiB calls,
-8 MiB transport buffers, and identical transport options. Every received byte is
-checked against the constant test pattern and the complete byte count is required.
+with one local IPv4 connection, accounting disabled, 8 MiB transport buffers, and
+identical transport options. The default profile is a plaintext File stream with
+32 KiB calls. `--mode live` uses the message API with 1,316-byte messages and
+120 ms receive/peer latency. `--encryption aes-128-ctr` enables required AES-128-CTR
+in either mode with a public benchmark-only passphrase. Both endpoints’ negotiated
+key state and size are checked before and after the measured transfer.
+
+Every received byte is checked and complete delivery is required. Live messages
+carry an eight-byte sequence number followed by the test pattern; missing,
+duplicated, reordered or truncated messages fail the trial. Live byte counts are
+rounded down to whole messages, and goodput uses the exact delivered count.
+Native pacing and late-packet-drop defaults are retained; the application adds no
+rate cap. The sender retries only after native WouldBlock. A Live failure cannot
+be turned into a passing sample by accepting partial delivery.
 Connection setup, idle probes and warmup are outside the timed transfer. Timing
 ends after receiver completion and sender join. SRT worker CPU is included in
 whole-process CPU; application-thread CPU is reported separately.
@@ -61,3 +72,22 @@ regression or inconclusive: inspect `summary` and `status`, not just its exit co
 Small smoke runs intentionally cannot qualify performance. Simultaneous-provider,
 close, cancellation, encryption and sanitizer tests remain separate correctness
 checks so their load cannot contaminate the throughput measurements.
+
+## Live and encrypted File profiles
+
+```sh
+python3 benchmarks/compare.py --build build-real --mode live --mib 1024 \
+  --warmup-mib 64 --probe-calls 20000 --runs 8 --output live.json
+python3 benchmarks/compare.py --build build-real --mode live --encryption aes-128-ctr \
+  --mib 1024 --warmup-mib 64 --probe-calls 20000 --runs 8 --output live-aes128.json
+python3 benchmarks/compare.py --build build-real --mode file --encryption aes-128-ctr \
+  --mib 2048 --warmup-mib 256 --probe-calls 20000 --runs 8 --output file-aes128.json
+```
+
+Each command keeps both providers and all three paths in the matrix; compare paths
+within a provider, not one provider’s speed against the other’s. Profiles are
+analyzed separately using the same 2%/5% budgets and minimum-duration/stability
+controls. These settings do not represent WAN loss, encryption key-size variants,
+forced key rotation, many connections or a specified real-time source rate.
+The three `benchmark_*` profile tests in CTest are short functional smoke checks,
+not performance qualification.
