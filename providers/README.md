@@ -86,6 +86,11 @@ shutdown/destroy. Concurrent lifecycle cancellation is not implemented yet; call
 must not infer it from the broader design draft. Publication/removal locks are
 cold-path only; established I/O performs no global locking or ownership increments.
 
+A native socket already retired by the vendor is treated as closed when its
+current adapter handle is closed. Unknown or released adapter handles still fail
+InvalidHandle; this does not weaken generation checks. Validation currently
+reports the first invalid configuration field.
+
 The registry grows in stable pages during connection creation and reuses released
 slots with new generations. It supports 65,536 concurrent handles per provider;
 capacity exhaustion reports Resource without changing existing connections.

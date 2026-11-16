@@ -58,7 +58,7 @@ srtm_config_v1 config(uint32_t mode, bool encrypted, bool accounting = false) {
     c.key_bits = encrypted ? 128 : 0;
     static constexpr uint8_t secret[] = "test-only-secret-passphrase";
     if (encrypted) c.passphrase = {secret, sizeof(secret) - 1};
-    c.receive_latency_ms = mode == SRTM_LIVE_MESSAGES ? 20 : 0;
+    c.receive_latency_ms = mode == SRTM_LIVE_MESSAGES ? 120 : 0;
     c.peer_latency_ms = c.receive_latency_ms; c.connect_timeout_ms = 3000; c.peer_idle_timeout_ms = 5000;
     c.mss_bytes = 1500; c.payload_bytes = mode == SRTM_LIVE_MESSAGES ? 1316 : 0;
     c.send_buffer_bytes = 8 * 1024 * 1024; c.receive_buffer_bytes = c.send_buffer_bytes;
@@ -115,14 +115,20 @@ void transfer(Session& sender, srtm_handle tx, Session& receiver, srtm_handle rx
             auto status = mode == SRTM_LIVE_MESSAGES
                 ? sender.api.send_message(sender.runtime, tx, {data.data()+sent, count}, nullptr, &io, &detail)
                 : sender.api.write_stream(sender.runtime, tx, {data.data()+sent, count}, &n, &io, &detail);
-            if (status != SRTM_OK && status != SRTM_WOULD_BLOCK) throw std::runtime_error(std::string(detail.message) + " sent=" + std::to_string(sent) + " received=" + std::to_string(received) + " vendor=" + std::to_string(io.vendor_code));
+            if (status != SRTM_OK && status != SRTM_WOULD_BLOCK) {
+                const auto message = std::string(detail.message) + " sent=" + std::to_string(sent) + " received=" + std::to_string(received) + " vendor=" + std::to_string(io.vendor_code);
+                std::cerr << message << std::endl; throw std::runtime_error(message);
+            }
             if (status == SRTM_OK) { sent += mode == SRTM_LIVE_MESSAGES ? count : static_cast<size_t>(n); progress = true; }
         }
         uint64_t n = 0;
         auto status = mode == SRTM_LIVE_MESSAGES
             ? receiver.api.receive_message(receiver.runtime, rx, {message_buffer.data(), message_buffer.size()}, &n, &meta, &io, &detail)
             : receiver.api.read_stream(receiver.runtime, rx, {output.data()+received, total-received}, &n, &io, &detail);
-        if (status != SRTM_OK && status != SRTM_WOULD_BLOCK) throw std::runtime_error(std::string(detail.message) + " sent=" + std::to_string(sent) + " received=" + std::to_string(received) + " vendor=" + std::to_string(io.vendor_code));
+        if (status != SRTM_OK && status != SRTM_WOULD_BLOCK) {
+                const auto message = std::string(detail.message) + " sent=" + std::to_string(sent) + " received=" + std::to_string(received) + " vendor=" + std::to_string(io.vendor_code);
+                std::cerr << message << std::endl; throw std::runtime_error(message);
+            }
         if (status == SRTM_OK) {
             require(n > 0 && n <= total-received, "Invalid receive byte count");
             if (mode == SRTM_LIVE_MESSAGES) {

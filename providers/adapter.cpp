@@ -222,7 +222,7 @@ srtm_status begin_shutdown(srtm_runtime* r, srtm_error_v1* d) {
     for (uint32_t i = 0; i < r->next_slot; ++i) {
         auto& e = (*r->pages[i / page_size].load())[i % page_size];
         if (e.generation.load() && !e.closed) {
-            if (srt_close(e.socket) != 0) return native_error(d);
+            if (srt_close(e.socket) != 0 && srt_getlasterror(nullptr) != SRT_EINVSOCK) return native_error(d);
             e.closed = true; e.ready = false;
         }
     }
@@ -458,7 +458,9 @@ srtm_status close(srtm_runtime* r, srtm_handle h, uint32_t mode, uint64_t timeou
     if (!e) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
     if (mode != SRTM_CLOSE_ABORT || timeout) return error(SRTM_ERR_UNSUPPORTED, "Only abort-close is implemented", d);
     if (e->closed) return SRTM_OK;
-    if (srt_close(e->socket) != 0) return native_error(d);
+    // The vendor may already have retired a broken native socket. Our live
+    // generation handle still owns its terminal wrapper record.
+    if (srt_close(e->socket) != 0 && srt_getlasterror(nullptr) != SRT_EINVSOCK) return native_error(d);
     e->closed = true; e->ready = false; return SRTM_OK;
 }
 srtm_status close_status(srtm_runtime* r, srtm_handle h, srtm_error_v1* d) {
