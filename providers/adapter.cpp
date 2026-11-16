@@ -4,6 +4,7 @@
 #include <array>
 #include <atomic>
 #include <climits>
+#include <cerrno>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -12,17 +13,101 @@
 #include <tuple>
 #include <type_traits>
 #include <vector>
+#include <unordered_map>
+#include <chrono>
+#include <algorithm>
+#include <utility>
 #ifndef _WIN32
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <fcntl.h>
 #endif
 
 namespace {
 constexpr uint32_t page_size = 256, page_count = 256;
+constexpr uint32_t shut_gate = 1u << 31;
+struct WakeChannel {
+    SYSSOCKET input = SYSSOCKET_INVALID, output = SYSSOCKET_INVALID;
+    bool signalled = false; // Owner poller mutex protects signal/drain.
+    static void dispose(SYSSOCKET s) {
+        if (s == SYSSOCKET_INVALID) return;
+#ifdef _WIN32
+        closesocket(s);
+#else
+        ::close(s);
+#endif
+    }
+    ~WakeChannel() { dispose(input); dispose(output); }
+    bool open() {
+#ifndef _WIN32
+        int sockets[2];
+        if (::socketpair(AF_UNIX, SOCK_DGRAM, 0, sockets) != 0) return false;
+        input = sockets[0]; output = sockets[1];
+        return fcntl(input, F_SETFL, O_NONBLOCK) == 0 && fcntl(output, F_SETFL, O_NONBLOCK) == 0 &&
+            fcntl(input, F_SETFD, FD_CLOEXEC) == 0 && fcntl(output, F_SETFD, FD_CLOEXEC) == 0;
+#else
+        input = ::socket(AF_INET, SOCK_DGRAM, 0); output = ::socket(AF_INET, SOCK_DGRAM, 0);
+        if (input == SYSSOCKET_INVALID || output == SYSSOCKET_INVALID) return false;
+        sockaddr_in addr{}; addr.sin_family = AF_INET; addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        if (::bind(input, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) return false;
+        int length = sizeof(addr); u_long nonblock = 1;
+        if (ioctlsocket(input, FIONBIO, &nonblock) || ioctlsocket(output, FIONBIO, &nonblock)) return false;
+        return getsockname(input, reinterpret_cast<sockaddr*>(&addr), &length) == 0 &&
+            ::connect(output, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+#endif
+    }
+    bool signal() {
+        if (signalled) return true;
+        const char byte = 1;
+        while (::send(output, &byte, 1, 0) != 1) {
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAEINTR) continue;
+#else
+            if (errno == EINTR) continue;
+#endif
+            return false;
+        }
+        signalled = true; return true;
+    }
+    void drain() {
+        char bytes[64];
+        while (true) {
+            if (::recv(input, bytes, sizeof(bytes), 0) > 0) continue;
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAEINTR) continue;
+#else
+            if (errno == EINTR) continue;
+#endif
+            break;
+        }
+        signalled = false;
+    }
+};
+struct Subscription { srtm_handle object; uint64_t token; uint32_t interests; SRTSOCKET socket; };
+struct PollState {
+    std::mutex mutex;
+    std::atomic_flag waiter = ATOMIC_FLAG_INIT;
+    WakeChannel wake;
+    bool interrupted = false, closing = false;
+    int eid = -1;
+    std::unordered_map<srtm_handle, Subscription> subscriptions;
+    std::unordered_map<SRTSOCKET, srtm_handle> sockets;
+    std::vector<srtm_event_v1> terminal;
+    std::vector<SRTSOCKET> reads = std::vector<SRTSOCKET>(256);
+    std::vector<SRTSOCKET> writes = std::vector<SRTSOCKET>(256);
+    ~PollState() { if (eid >= 0) srt_epoll_release(eid); }
+};
+struct alignas(64) CallGate { std::atomic<uint32_t> count{shut_gate}; };
 struct Entry {
     std::atomic<uint32_t> generation{0};
+    std::mutex lifecycle;
+    std::array<CallGate, 3> calls; // TX, RX, cold operations.
+    std::unique_ptr<PollState> poller;
     SRTSOCKET socket = SRT_INVALID_SOCK;
-    uint32_t mode = 0, payload = 0, encryption = 0, mss = 0;
-    bool listener = false, ready = false, closed = false, accounting = false;
+    uint32_t mode = 0, encryption = 0, mss = 0;
+    std::atomic<uint32_t> payload{0};
+    bool listener = false, accounting = false;
+    std::atomic<bool> ready{false}, closed{false};
     alignas(64) std::atomic<uint64_t> tx{0};
     alignas(64) std::atomic<uint64_t> rx{0};
 };
@@ -34,7 +119,8 @@ struct srtm_runtime {
     std::mutex control;
     std::vector<uint32_t> free_slots;
     uint32_t next_slot = 0, objects = 0;
-    bool stopping = false;
+    std::atomic<bool> stopping{false};
+    std::mutex shutdown;
     ~srtm_runtime() { for (auto& p : pages) delete p.load(); }
 };
 namespace {
@@ -77,7 +163,7 @@ srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr) {
     return error(category, out ? srt_getlasterror_str() : "", out, io, code, os);
 }
 bool runtime_ok(srtm_runtime* r) { return r && active.load(std::memory_order_acquire) == r; }
-Entry* lookup(srtm_runtime* r, srtm_handle h) {
+Entry* raw_lookup(srtm_runtime* r, srtm_handle h) {
     if (!runtime_ok(r) || (h >> 48) != PROVIDER_TAG) return nullptr;
     const auto index = static_cast<uint32_t>(h & 0xffffu);
     auto* page = r->pages[index / page_size].load(std::memory_order_acquire);
@@ -86,13 +172,51 @@ Entry* lookup(srtm_runtime* r, srtm_handle h) {
     const auto generation = e->generation.load(std::memory_order_acquire);
     return generation != 0 && generation == ((h >> 16) & 0xffffffffu) ? e : nullptr;
 }
+// A gate pins a stable slot until the call returns. Closing prevents new claims;
+// generation is rechecked AFTER claiming so a delayed stale call cannot alias reuse.
+struct Lease {
+    Entry* entry = nullptr; unsigned lane = 2;
+    Lease() = default;
+    Lease(Entry* e, unsigned l) : entry(e), lane(l) {}
+    Lease(const Lease&) = delete;
+    Lease& operator=(const Lease&) = delete;
+    Lease(Lease&& other) noexcept : entry(std::exchange(other.entry, nullptr)), lane(other.lane) {}
+    ~Lease() {
+        if (entry) {
+            auto& gate = entry->calls[lane].count;
+            const auto old = gate.fetch_sub(1, std::memory_order_release);
+            if ((old & shut_gate) && (old & ~shut_gate) == 1) gate.notify_all();
+        }
+    }
+    Entry* operator->() const { return entry; }
+    explicit operator bool() const { return entry != nullptr; }
+};
+Lease lookup(srtm_runtime* r, srtm_handle h, unsigned lane = 2) {
+    auto* e = raw_lookup(r, h); if (!e) return {};
+    auto& gate = e->calls[lane].count;
+    auto count = gate.load(std::memory_order_relaxed);
+    do { if ((count & shut_gate) || count == shut_gate-1) return {}; }
+    while (!gate.compare_exchange_weak(count, count+1, std::memory_order_acquire, std::memory_order_relaxed));
+    Lease lease(e, lane);
+    if (e->generation.load(std::memory_order_acquire) != ((h >> 16) & 0xffffffffu)) return {};
+    return lease;
+}
+void block_calls(Entry& e) {
+    for (auto& gate : e.calls) gate.count.fetch_or(shut_gate, std::memory_order_acq_rel);
+    for (auto& gate : e.calls) {
+        auto count = gate.count.load(std::memory_order_acquire);
+        while (count != shut_gate) { gate.count.wait(count, std::memory_order_acquire); count = gate.count.load(std::memory_order_acquire); }
+    }
+}
+void notify_closed(srtm_runtime*, srtm_handle, bool);
+srtm_status close(srtm_runtime*, srtm_handle, uint32_t, uint64_t, srtm_error_v1*);
 struct SocketOwner {
     SRTSOCKET value;
     ~SocketOwner() { if (value != SRT_INVALID_SOCK) srt_close(value); }
 };
 srtm_status publish(srtm_runtime* r, SocketOwner& socket, uint32_t mode,
                     uint32_t payload, uint32_t encryption, uint32_t mss, bool listener, bool ready, bool accounting,
-                    srtm_handle* out, srtm_error_v1* detail) {
+                    srtm_handle* out, srtm_error_v1* detail, std::unique_ptr<PollState> poller = {}) {
     std::lock_guard lock(r->control);
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime is stopping", detail);
     if (r->free_slots.empty() && r->next_slot == page_size * page_count)
@@ -113,8 +237,9 @@ srtm_status publish(srtm_runtime* r, SocketOwner& socket, uint32_t mode,
     auto& e = (*page)[index % page_size];
     e.socket = socket.value; e.mode = mode; e.payload = payload; e.encryption = encryption; e.mss = mss;
     e.listener = listener; e.ready = ready; e.closed = false; e.accounting = accounting;
-    e.tx.store(0); e.rx.store(0);
+    e.tx.store(0); e.rx.store(0); e.poller = std::move(poller);
     e.generation.store(generation, std::memory_order_release);
+    for (auto& gate : e.calls) gate.count.store(0, std::memory_order_release);
     ++r->objects;
     *out = (uint64_t(PROVIDER_TAG) << 48) | (uint64_t(generation) << 16) | index;
     socket.value = SRT_INVALID_SOCK;
@@ -200,7 +325,7 @@ srtm_status provider_info(srtm_provider_info_v1* out, srtm_error_v1* d) {
     if (!sized(out)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid descriptor buffer", d);
     const auto size = out->struct_size;
     *out = {size, 0, text(PROVIDER_NAME), text(PROVIDER_RELEASE), text(PROVIDER_REVISION),
-        text(PROVIDER_FINGERPRINT), text(PROVIDER_PLATFORM), text("static-srt;shared-openssl;basic-io;no-poller")};
+        text(PROVIDER_FINGERPRINT), text(PROVIDER_PLATFORM), text(PROVIDER_BUILD_FEATURES)};
     return SRTM_OK;
 }
 srtm_status runtime_create(const srtm_host_v1* host, srtm_runtime** out, srtm_error_v1* d) {
@@ -217,26 +342,45 @@ srtm_status runtime_create(const srtm_host_v1* host, srtm_runtime** out, srtm_er
 srtm_status begin_shutdown(srtm_runtime* r, srtm_error_v1* d) {
     clear(d);
     if (!runtime_ok(r)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid runtime", d);
-    // Caller has quiesced I/O and lifecycle operations before entering shutdown.
-    r->stopping = true;
-    for (uint32_t i = 0; i < r->next_slot; ++i) {
-        auto& e = (*r->pages[i / page_size].load())[i % page_size];
-        if (e.generation.load() && !e.closed) {
-            if (srt_close(e.socket) != 0 && srt_getlasterror(nullptr) != SRT_EINVSOCK) return native_error(d);
-            e.closed = true; e.ready = false;
+    std::lock_guard shutdown_lock(r->shutdown);
+    std::vector<srtm_handle> handles;
+    {
+        std::lock_guard lock(r->control); r->stopping = true;
+        handles.reserve(r->objects);
+        for (uint32_t i = 0; i < r->next_slot; ++i) {
+            auto& e = (*r->pages[i / page_size].load())[i % page_size];
+            const auto gen = e.generation.load(); if (!gen) continue;
+            if (e.poller) {
+                std::lock_guard plock(e.poller->mutex);
+                e.poller->closing = true; e.poller->interrupted = true; e.poller->wake.signal();
+            } else handles.push_back((uint64_t(PROVIDER_TAG) << 48) | (uint64_t(gen) << 16) | i);
         }
+    }
+    for (auto h : handles) {
+        srtm_error_v1 detail{}; detail.struct_size = sizeof(detail);
+        if (close(r, h, SRTM_CLOSE_ABORT, 0, &detail) != SRTM_OK && detail.category != SRTM_ERR_INVALID_HANDLE)
+            return error(detail.category, detail.message, d);
     }
     return SRTM_OK;
 }
 srtm_status shutdown_status(srtm_runtime* r, srtm_error_v1* d) {
     clear(d);
     if (!runtime_ok(r)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid runtime", d);
-    return r->stopping ? SRTM_OK : SRTM_PENDING;
+    if (!r->stopping) return SRTM_PENDING;
+    std::lock_guard lock(r->control);
+    for (uint32_t i = 0; i < r->next_slot; ++i) {
+        auto& e = (*r->pages[i / page_size].load())[i % page_size];
+        if (!e.generation.load()) continue;
+        if (!e.poller && !e.closed) return SRTM_PENDING;
+        for (auto& gate : e.calls) if (gate.count.load() & ~shut_gate) return SRTM_PENDING;
+    }
+    return SRTM_OK;
 }
 srtm_status runtime_destroy(srtm_runtime* r, srtm_error_v1* d) {
     clear(d); std::lock_guard lock(startup_mutex);
     if (!runtime_ok(r)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid runtime", d);
-    if (!r->stopping || r->objects) return error(SRTM_ERR_BUSY, "Shutdown and release objects first", d);
+    { std::lock_guard control_lock(r->control);
+      if (!r->stopping || r->objects) return error(SRTM_ERR_BUSY, "Shutdown and release objects first", d); }
     if (srt_cleanup() != 0) return native_error(d);
     active.store(nullptr); delete r; return SRTM_OK;
 }
@@ -267,11 +411,11 @@ srtm_status capability(srtm_runtime* r, const srtm_capability_query_v1* q, srtm_
     const std::string_view name(q->feature.data, static_cast<size_t>(q->feature.size));
     srtm_endpoint v6{}; v6.family = SRTM_AF_IPV6;
     const bool supported = !invalid_config(q->config) && (name != "core.ipv6" || qualified_address(q->config->mode, &v6)) && (name == "core.ipv4" || name == "core.ipv6" ||
-        name == "core.live_messages" || name == "core.file_stream" || name == "crypto.aes_ctr" || name == "core.statistics");
+        name == "core.live_messages" || name == "core.file_stream" || name == "crypto.aes_ctr" || name == "core.statistics" || name == "core.polling");
     const auto size = out->struct_size;
     *out = {size, supported ? SRTM_CAP_AVAILABLE : SRTM_CAP_UNSUPPORTED,
-        supported && name != "core.statistics" ? 1u : 0u, 0,
-        text("Basic I/O; caller-serialized lifecycle; no poller, callbacks or drain-close")};
+        supported && name != "core.statistics" && name != "core.polling" ? 1u : 0u, 0,
+        text("Native polling and concurrent abort-close; no callbacks or drain-close")};
     return SRTM_OK;
 }
 srtm_status connection_create(srtm_runtime* r, const srtm_config_v1* c, srtm_handle* out, srtm_error_v1* d) {
@@ -283,16 +427,16 @@ srtm_status connection_create(srtm_runtime* r, const srtm_config_v1* c, srtm_han
     return publish(r, socket, c->mode, c->payload_bytes, c->encryption, c->mss_bytes, false, false, c->accounting != 0, out, d);
 }
 srtm_status bind(srtm_runtime* r, srtm_handle h, const srtm_endpoint* ep, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h); sockaddr_storage addr{}; const auto len = address(ep, addr);
-    if (!e || e->closed) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
+    clear(d); auto e = lookup(r, h); sockaddr_storage addr{}; const auto len = address(ep, addr);
+    if (!e || e->closed || e->listener || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
     if (!len || e->listener) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid bind arguments", d);
     if (e->mode == SRTM_LIVE_MESSAGES && ep->family == SRTM_AF_IPV6 && e->payload > e->mss - 64) return error(SRTM_ERR_INVALID_ARGUMENT, "Payload exceeds IPv6 MSS budget", d);
     if (!qualified_address(e->mode, ep)) return error(SRTM_ERR_UNSUPPORTED, "Haivision File/IPv6 is not qualified", d);
     return srt_bind(e->socket, reinterpret_cast<sockaddr*>(&addr), len) == 0 ? SRTM_OK : native_error(d);
 }
 srtm_status connect(srtm_runtime* r, srtm_handle h, const srtm_endpoint* ep, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h); sockaddr_storage addr{}; const auto len = address(ep, addr);
-    if (!e || e->closed) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
+    clear(d); auto e = lookup(r, h); sockaddr_storage addr{}; const auto len = address(ep, addr);
+    if (!e || e->closed || e->listener || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
     if (!len || !ep->port || e->listener) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid connect arguments", d);
     if (e->mode == SRTM_LIVE_MESSAGES && ep->family == SRTM_AF_IPV6 && e->payload > e->mss - 64) return error(SRTM_ERR_INVALID_ARGUMENT, "Payload exceeds IPv6 MSS budget", d);
     if (!qualified_address(e->mode, ep)) return error(SRTM_ERR_UNSUPPORTED, "Haivision File/IPv6 is not qualified", d);
@@ -300,8 +444,10 @@ srtm_status connect(srtm_runtime* r, srtm_handle h, const srtm_endpoint* ep, srt
     return SRTM_PENDING; // connection_info finalizes negotiated metadata before I/O.
 }
 srtm_status info(srtm_runtime* r, srtm_handle h, srtm_connection_info_v1* out, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto* e = raw_lookup(r, h);
     if (!e) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
+    std::lock_guard life(e->lifecycle);
+    if (raw_lookup(r, h) != e || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
     if (!sized(out) || !sized(&out->terminal_error)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid info buffer", d);
     srtm_connection_info_v1 value{}; value.struct_size = out->struct_size;
     value.terminal_error.struct_size = out->terminal_error.struct_size;
@@ -383,7 +529,7 @@ srtm_status listener_create(srtm_runtime* r, const srtm_listener_config_v1* c, s
     return publish(r, socket, c->transport.mode, c->transport.payload_bytes, c->transport.encryption, c->transport.mss_bytes, true, false, c->transport.accounting != 0, out, d);
 }
 srtm_status listener_endpoint(srtm_runtime* r, srtm_handle h, srtm_endpoint* out, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto e = lookup(r, h);
     if (!e || e->closed || !e->listener) return error(SRTM_ERR_INVALID_HANDLE, "Invalid listener", d);
     if (!out) return error(SRTM_ERR_INVALID_ARGUMENT, "Null endpoint", d);
     sockaddr_storage addr{}; int size = sizeof(addr);
@@ -391,22 +537,22 @@ srtm_status listener_endpoint(srtm_runtime* r, srtm_handle h, srtm_endpoint* out
     *out = endpoint(addr); return SRTM_OK;
 }
 srtm_status accept(srtm_runtime* r, srtm_handle h, srtm_handle* out, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto e = lookup(r, h);
     if (!e || e->closed || !e->listener) return error(SRTM_ERR_INVALID_HANDLE, "Invalid listener", d);
     if (!out) return error(SRTM_ERR_INVALID_ARGUMENT, "Null accepted handle", d);
     SocketOwner socket{srt_accept(e->socket, nullptr, nullptr)};
     if (socket.value == SRT_INVALID_SOCK) return native_error(d);
-    return publish(r, socket, e->mode, e->payload, e->encryption, e->mss, false, false, e->accounting, out, d);
+    return publish(r, socket, e->mode, e->payload.load(), e->encryption, e->mss, false, false, e->accounting, out, d);
 }
-Entry* io_entry(srtm_runtime* r, srtm_handle h, uint32_t mode, srtm_io_error_v1* io, srtm_error_v1* d) {
-    if (!sized(io)) { error(SRTM_ERR_INVALID_ARGUMENT, "Invalid I/O error buffer", d); return nullptr; }
-    auto* e = lookup(r, h);
-    if (!e || e->closed || e->listener) { error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d, io); return nullptr; }
-    if (e->mode != mode || !e->ready) { error(SRTM_ERR_INVALID_STATE, "Wrong mode or call connection_info until connected before I/O", d, io); return nullptr; }
+Lease io_entry(srtm_runtime* r, srtm_handle h, uint32_t mode, srtm_io_error_v1* io, srtm_error_v1* d, unsigned lane) {
+    if (!sized(io)) { error(SRTM_ERR_INVALID_ARGUMENT, "Invalid I/O error buffer", d); return {}; }
+    auto e = lookup(r, h, lane);
+    if (!e || e->closed || e->listener || e->poller) { error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d, io); return {}; }
+    if (e->mode != mode || !e->ready) { error(SRTM_ERR_INVALID_STATE, "Wrong mode or call connection_info until connected before I/O", d, io); return {}; }
     return e;
 }
 srtm_status send_message(srtm_runtime* r, srtm_handle h, srtm_bytes buffer, const srtm_message_info_v1* m, srtm_io_error_v1* io, srtm_error_v1* d) {
-    auto* e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d); if (!e) return SRTM_FAILED;
+    auto e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d, 0); if (!e) return SRTM_FAILED;
     if (!buffer.data || !buffer.size || buffer.size > e->payload || (m && (!sized(m) || (m->valid_fields & ~1u) || ((m->valid_fields & 1) && m->source_time_us < 0))))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid message", d, io);
     SRT_MSGCTRL ctrl = srt_msgctrl_default;
@@ -418,7 +564,7 @@ srtm_status send_message(srtm_runtime* r, srtm_handle h, srtm_bytes buffer, cons
     return SRTM_OK;
 }
 srtm_status receive_message(srtm_runtime* r, srtm_handle h, srtm_mut_bytes buffer, uint64_t* received, srtm_message_info_v1* m, srtm_io_error_v1* io, srtm_error_v1* d) {
-    auto* e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d); if (!e) return SRTM_FAILED;
+    auto e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d, 1); if (!e) return SRTM_FAILED;
     if (!buffer.data || buffer.size < e->payload || buffer.size > INT_MAX || !received || !sized(m))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid receive buffer", d, io);
     SRT_MSGCTRL ctrl = srt_msgctrl_default;
@@ -430,7 +576,7 @@ srtm_status receive_message(srtm_runtime* r, srtm_handle h, srtm_mut_bytes buffe
 }
 srtm_status stream_io(srtm_runtime* r, srtm_handle h, const uint8_t* data, uint8_t* writable, uint64_t size, uint64_t* count,
                       srtm_io_error_v1* io, srtm_error_v1* d, bool send) {
-    auto* e = io_entry(r, h, SRTM_FILE_STREAM, io, d); if (!e) return SRTM_FAILED;
+    auto e = io_entry(r, h, SRTM_FILE_STREAM, io, d, send ? 0 : 1); if (!e) return SRTM_FAILED;
     if (!count || size > INT_MAX || (size && !(send ? data : writable))) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid stream buffer", d, io);
     if (!size) { *count = 0; return SRTM_OK; }
     int n = send ? srt_send(e->socket, reinterpret_cast<const char*>(data), int(size)) : srt_recv(e->socket, reinterpret_cast<char*>(writable), int(size));
@@ -443,8 +589,8 @@ srtm_status stream_io(srtm_runtime* r, srtm_handle h, const uint8_t* data, uint8
 srtm_status write_stream(srtm_runtime* r, srtm_handle h, srtm_bytes b, uint64_t* n, srtm_io_error_v1* io, srtm_error_v1* d) { return stream_io(r, h, b.data, nullptr, b.size, n, io, d, true); }
 srtm_status read_stream(srtm_runtime* r, srtm_handle h, srtm_mut_bytes b, uint64_t* n, srtm_io_error_v1* io, srtm_error_v1* d) { return stream_io(r, h, nullptr, b.data, b.size, n, io, d, false); }
 srtm_status statistics(srtm_runtime* r, srtm_handle h, srtm_statistics_v1* out, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
-    if (!e || e->closed || e->listener) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
+    clear(d); auto e = lookup(r, h);
+    if (!e || e->closed || e->listener || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid connection", d);
     if (!sized(out)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid statistics buffer", d);
     srtm_statistics_v1 value{}; value.struct_size = out->struct_size;
     value.counter_epoch = h; value.sample_time_us = static_cast<uint64_t>(srt_time_now());
@@ -454,29 +600,37 @@ srtm_status statistics(srtm_runtime* r, srtm_handle h, srtm_statistics_v1* out, 
     *out = value; return SRTM_OK;
 }
 srtm_status close(srtm_runtime* r, srtm_handle h, uint32_t mode, uint64_t timeout, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto* e = raw_lookup(r, h);
     if (!e) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
+    std::lock_guard life(e->lifecycle);
+    if (raw_lookup(r, h) != e || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
     if (mode != SRTM_CLOSE_ABORT || timeout) return error(SRTM_ERR_UNSUPPORTED, "Only abort-close is implemented", d);
     if (e->closed) return SRTM_OK;
-    // The vendor may already have retired a broken native socket. Our live
-    // generation handle still owns its terminal wrapper record.
+    block_calls(*e);
+    notify_closed(r, h, false);
     if (srt_close(e->socket) != 0 && srt_getlasterror(nullptr) != SRT_EINVSOCK) return native_error(d);
     e->closed = true; e->ready = false; return SRTM_OK;
 }
 srtm_status close_status(srtm_runtime* r, srtm_handle h, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto* e = raw_lookup(r, h);
     if (!e) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
+    std::lock_guard life(e->lifecycle);
+    if (raw_lookup(r, h) != e || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
     return e->closed ? SRTM_OK : SRTM_PENDING;
 }
 srtm_status release(srtm_runtime* r, srtm_handle h, srtm_error_v1* d) {
-    clear(d); auto* e = lookup(r, h);
+    clear(d); auto* e = raw_lookup(r, h);
     if (!e) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
+    std::lock_guard life(e->lifecycle);
+    if (raw_lookup(r, h) != e || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid object", d);
     if (!e->closed) return error(SRTM_ERR_BUSY, "Close before release", d);
+    notify_closed(r, h, true);
     std::lock_guard lock(r->control);
     e->generation.store(0, std::memory_order_release);
     r->free_slots.push_back(static_cast<uint32_t>(h & 0xffffu)); --r->objects;
     return SRTM_OK;
 }
+#include "polling.hpp"
 srtm_status extension(srtm_runtime*, srtm_text, uint32_t, uint32_t, const srtm_extension_header_v1** out, srtm_error_v1* d) {
     if (out) *out = nullptr;
     return error(SRTM_ERR_UNSUPPORTED, "No extensions in the basic adapter", d);
@@ -516,10 +670,10 @@ const srtm_provider_api_v1 table = [] {
     SET(statistics, statistics); SET(object_close, close); SET(object_close_status, close_status); SET(object_release, release);
     SET(query_extension, extension);
 #undef SET
-#define UNSUPPORTED(field) a.field = &Unsupported<decltype(a.field)>::call
-    UNSUPPORTED(poller_create); UNSUPPORTED(poller_register); UNSUPPORTED(poller_remove);
-    UNSUPPORTED(poller_wait); UNSUPPORTED(poller_wake); UNSUPPORTED(poller_release);
-#undef UNSUPPORTED
+#define SET_POLL(field) a.field = &Guard<field>::call
+    SET_POLL(poller_create); SET_POLL(poller_register); SET_POLL(poller_remove);
+    SET_POLL(poller_wait); SET_POLL(poller_wake); SET_POLL(poller_release);
+#undef SET_POLL
     return a;
 }();
 }

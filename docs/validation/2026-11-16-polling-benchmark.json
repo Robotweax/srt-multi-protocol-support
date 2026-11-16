@@ -1,0 +1,299 @@
+{
+  "platform": "darwin",
+  "profile": "File stream, IPv4 loopback, plaintext, 32 KiB calls, accounting off, 8 MiB warmup; payload verified",
+  "qualification": "Exploratory only: shared host, no affinity, no confidence bounds or latency measurements",
+  "samples": [
+    {
+      "provider": "robotweax",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.555373,
+      "cpu_seconds": 1.19744,
+      "mbps": 1933.37
+    },
+    {
+      "provider": "robotweax",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.556284,
+      "cpu_seconds": 1.19971,
+      "mbps": 1930.21
+    },
+    {
+      "provider": "robotweax",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.554487,
+      "cpu_seconds": 1.19511,
+      "mbps": 1936.46
+    },
+    {
+      "provider": "robotweax",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.549903,
+      "cpu_seconds": 1.1897,
+      "mbps": 1952.6
+    },
+    {
+      "provider": "robotweax",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.553259,
+      "cpu_seconds": 1.1982,
+      "mbps": 1940.76
+    },
+    {
+      "provider": "haivision",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.645065,
+      "cpu_seconds": 2.17899,
+      "mbps": 1664.55
+    },
+    {
+      "provider": "robotweax",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.556629,
+      "cpu_seconds": 1.20446,
+      "mbps": 1929.01
+    },
+    {
+      "provider": "robotweax",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.555959,
+      "cpu_seconds": 1.20499,
+      "mbps": 1931.33
+    },
+    {
+      "provider": "robotweax",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.550332,
+      "cpu_seconds": 1.19076,
+      "mbps": 1951.08
+    },
+    {
+      "provider": "haivision",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.767371,
+      "cpu_seconds": 2.4691,
+      "mbps": 1399.25
+    },
+    {
+      "provider": "haivision",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.690242,
+      "cpu_seconds": 2.31933,
+      "mbps": 1555.6
+    },
+    {
+      "provider": "haivision",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 1.17006,
+      "cpu_seconds": 3.34582,
+      "mbps": 917.681
+    },
+    {
+      "provider": "haivision",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 1.2662,
+      "cpu_seconds": 3.56172,
+      "mbps": 848.003
+    },
+    {
+      "provider": "robotweax",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.553201,
+      "cpu_seconds": 1.1907,
+      "mbps": 1940.96
+    },
+    {
+      "provider": "haivision",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.678415,
+      "cpu_seconds": 2.26302,
+      "mbps": 1582.72
+    },
+    {
+      "provider": "haivision",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.925043,
+      "cpu_seconds": 2.82368,
+      "mbps": 1160.75
+    },
+    {
+      "provider": "robotweax",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.556213,
+      "cpu_seconds": 1.20373,
+      "mbps": 1930.45
+    },
+    {
+      "provider": "robotweax",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.558258,
+      "cpu_seconds": 1.20734,
+      "mbps": 1923.38
+    },
+    {
+      "provider": "haivision",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.915858,
+      "cpu_seconds": 2.79963,
+      "mbps": 1172.39
+    },
+    {
+      "provider": "haivision",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.913209,
+      "cpu_seconds": 2.7915,
+      "mbps": 1175.79
+    },
+    {
+      "provider": "haivision",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.908431,
+      "cpu_seconds": 2.78701,
+      "mbps": 1181.97
+    },
+    {
+      "provider": "haivision",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.775005,
+      "cpu_seconds": 2.46406,
+      "mbps": 1385.46
+    },
+    {
+      "provider": "haivision",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.889096,
+      "cpu_seconds": 2.74353,
+      "mbps": 1207.68
+    },
+    {
+      "provider": "robotweax",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.554062,
+      "cpu_seconds": 1.20147,
+      "mbps": 1937.94
+    },
+    {
+      "provider": "robotweax",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.549527,
+      "cpu_seconds": 1.19266,
+      "mbps": 1953.94
+    },
+    {
+      "provider": "robotweax",
+      "path": "direct",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.556544,
+      "cpu_seconds": 1.20332,
+      "mbps": 1929.3
+    },
+    {
+      "provider": "robotweax",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "6bfe453f52ab2a170f46d7aefd83f9934f77a68c339870f9ab40d43b195e2351",
+      "seconds": 0.553712,
+      "cpu_seconds": 1.20411,
+      "mbps": 1939.17
+    },
+    {
+      "provider": "haivision",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.64974,
+      "cpu_seconds": 2.20258,
+      "mbps": 1652.57
+    },
+    {
+      "provider": "haivision",
+      "path": "module",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.839247,
+      "cpu_seconds": 2.62009,
+      "mbps": 1279.41
+    },
+    {
+      "provider": "haivision",
+      "path": "facade",
+      "bytes": 134217728,
+      "build_fingerprint": "dcc4010cfe5da565bb5df56cde329788ea17944b6a31d468e73de660c24cc85f",
+      "seconds": 0.991368,
+      "cpu_seconds": 2.96458,
+      "mbps": 1083.09
+    }
+  ],
+  "summary": {
+    "robotweax": {
+      "module": {
+        "median_throughput_change_percent": 0.5340723665466562,
+        "median_cpu_per_byte_change_percent": -0.425489479107799
+      },
+      "facade": {
+        "median_throughput_change_percent": 0.3879924369965648,
+        "median_cpu_per_byte_change_percent": -0.30000332413654407
+      }
+    },
+    "haivision": {
+      "module": {
+        "median_throughput_change_percent": -2.64060015898252,
+        "median_cpu_per_byte_change_percent": 1.7484773266558173
+      },
+      "facade": {
+        "median_throughput_change_percent": 28.80895601483835,
+        "median_cpu_per_byte_change_percent": -15.461832019332755
+      }
+    }
+  }
+}

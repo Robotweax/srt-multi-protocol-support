@@ -1,3 +1,5 @@
+#include <future>
+#include <atomic>
 #include <srtmux/module.hpp>
 #include <algorithm>
 #include <array>
@@ -155,10 +157,58 @@ void checks(Session& a, Session& b) {
     require(a.api.send_message(a.runtime, h, {data.data(), 1}, nullptr, &io, &a.error) == SRTM_FAILED && io.category == SRTM_ERR_INVALID_HANDLE, "Stale handle accepted");
     a.drop(replacement);
     srtm_handle poller = 0;
-    require(a.api.poller_create(a.runtime, &poller, &a.error) == SRTM_FAILED && a.error.category == SRTM_ERR_UNSUPPORTED, "Unimplemented polling not rejected");
+    a.check(a.api.poller_create(a.runtime, &poller, &a.error));
+    a.check(a.api.poller_release(a.runtime, poller, &a.error));
     cfg.encryption = SRTM_ENCRYPTION_AES_CTR_REQUIRED; cfg.key_bits = 128;
     srtm_handle invalid = 0;
     require(a.api.connection_create(a.runtime, &cfg, &invalid, &a.error) == SRTM_FAILED && invalid == 0, "Invalid encryption silently accepted");
+}
+void polling_checks(Session& a, Session& b) {
+    srtm_handle poller = 0; a.check(a.api.poller_create(a.runtime, &poller, &a.error));
+    auto h = a.connection(config(SRTM_FILE_STREAM, false));
+    auto foreign = b.connection(config(SRTM_FILE_STREAM, false));
+    require(a.api.poller_register(a.runtime, poller, foreign, SRTM_READY_READ, 1, &a.error) == SRTM_FAILED,
+        "foreign poll registration accepted"); b.drop(foreign);
+    a.check(a.api.poller_register(a.runtime, poller, h, SRTM_READY_STATE, 123, &a.error));
+    a.check(a.api.object_close(a.runtime, h, SRTM_CLOSE_ABORT, 0, &a.error));
+    struct Extended { srtm_event_v1 event; uint64_t tail; } event{{sizeof(Extended), 0, 0, 0}, 0x12345678};
+    uint32_t count = 0; auto io = record<srtm_io_error_v1>();
+    require(a.api.poller_wait(a.runtime, poller, 0, &event.event, 1, sizeof(event), &count, &io, &a.error) == SRTM_OK,
+        "closed object poll event");
+    require(count == 1 && event.event.registration_token == 123 && event.event.object == h &&
+        event.event.readiness == (SRTM_READY_ERROR|SRTM_READY_STATE) && event.tail == 0x12345678 && event.event.struct_size == sizeof(Extended),
+        "poll output/token/tail contract");
+    a.drop(h);
+    require(a.api.poller_wait(a.runtime, poller, 0, &event.event, 1, sizeof(event), &count, &io, &a.error) == SRTM_TIMED_OUT && count == 0,
+        "released generation retained readiness");
+    auto wait = std::async(std::launch::async, [&] {
+        auto output = record<srtm_event_v1>(); auto error = record<srtm_io_error_v1>(); uint32_t n = 0;
+        while (true) {
+            auto status = a.api.poller_wait(a.runtime, poller, SRTM_WAIT_FOREVER, &output, 1, sizeof(output), &n, &error, nullptr);
+            if (status != SRTM_FAILED || error.category != SRTM_ERR_BUSY) return status;
+            std::this_thread::yield();
+        }
+    });
+    // Observe Busy rather than assuming the worker has entered after a sleep.
+    auto until = Clock::now()+2s;
+    while (true) {
+        auto status = a.api.poller_wait(a.runtime, poller, 0, &event.event, 1, sizeof(event), &count, &io, &a.error);
+        if (status == SRTM_FAILED && io.category == SRTM_ERR_BUSY) break;
+        require(Clock::now()<until, "waiter did not enter"); std::this_thread::yield();
+    }
+    const auto released = a.api.poller_release(a.runtime, poller, &a.error);
+    require(released == SRTM_OK || (released == SRTM_FAILED && a.error.category == SRTM_ERR_BUSY), "poller release failed");
+    require(wait.get() == SRTM_INTERRUPTED, "release did not cancel active wait");
+    if (released != SRTM_OK) a.check(a.api.poller_release(a.runtime, poller, &a.error));
+    // Race delayed stale lookups with slot reuse. No old handle may reach a new socket.
+    auto stale = a.connection(config(SRTM_FILE_STREAM, false)); a.drop(stale);
+    std::atomic<bool> stop{false}; std::atomic<bool> bad{false};
+    std::jthread worker([&] {
+        auto error = record<srtm_io_error_v1>(); uint64_t n = 0; const uint8_t byte = 1;
+        while(!stop.load()) if(a.api.write_stream(a.runtime, stale, {&byte,1}, &n, &error, nullptr) != SRTM_FAILED || error.category != SRTM_ERR_INVALID_HANDLE) bad=true;
+    });
+    for(int i=0;i<100;++i) { auto replacement=a.connection(config(SRTM_FILE_STREAM,false)); a.drop(replacement); }
+    stop=true; worker.join(); require(!bad.load(), "stale call reached reused slot");
 }
 void reject_bad_secret(Session& caller, Session& server) {
     auto cfg = config(SRTM_LIVE_MESSAGES, true);
@@ -191,6 +241,7 @@ int main(int argc, char** argv) {
         auto second = std::make_unique<Session>(reversed ? argv[1] : argv[2], reversed ? "robotweax" : "haivision", reversed ? "0.3.3" : "1.5.7");
         Session& rw = reversed ? *second : *first; Session& hv = reversed ? *first : *second;
         checks(rw, hv); checks(hv, rw);
+        polling_checks(rw,hv); polling_checks(hv,rw);
         reject_bad_secret(rw, hv); reject_bad_secret(hv, rw);
         for (auto* sender : {&rw, &hv}) {
             Session& receiver = sender == &rw ? hv : rw;

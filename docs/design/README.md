@@ -2,8 +2,8 @@
 
 Status: design draft v0.2, 16 November 2026. These are declaration-only design
 artifacts for private modules containing Robotweax SRT 0.3.3 and Haivision SRT
-1.5.7. The transport facade is declaration-only. The provider ABI is now exercised by
-the host module loader and test fixtures; it is not a released ABI. Real basic-I/O adapters now exist. Their narrower implemented profile, including
+1.5.7. The transport facade is implemented in `include/srtmux/transport.hpp`. The provider ABI is now exercised by
+the host module loader and test fixtures; it is not a released ABI. Real I/O, polling and concurrent abort-close adapters now exist. Their narrower implemented profile, including
 caller-serialized lifecycle operations and explicit unsupported features, is
 documented in [the provider milestone](../../providers/README.md). The full
 contract below remains the target design, not a claim of completed implementation.
@@ -64,7 +64,9 @@ translation are permitted and must be measured, not assumed free.
 Handle validation must retain kind/generation/lifetime safety without a globally
 locked lookup. Connection-local or sharded designs are permitted; the ABI does
 not mandate a hash map. Lifetime ownership is established at creation and teardown,
-not by incrementing a shared ownership counter on each packet. Concurrency safety
+not by incrementing a shared_ptr ownership counter on each packet. The implemented
+close safety uses separate per-direction atomic call gates; benchmark their two
+RMW operations per call against direct SRT. Concurrency safety
 must not be removed to meet a benchmark. One send and one receive may proceed
 concurrently per connection; same-direction concurrent operations require caller
 serialization. Lifecycle coordination must not add a per-packet coarse mutex.
@@ -325,11 +327,12 @@ cause WouldBlock. Remaining ready objects stay eligible if an output array fills
 wait reports actual count and does not use BUFFER_TOO_SMALL for event overflow.
 
 Wait requires at least one event slot. Timeout zero polls, UINT64_MAX waits
-indefinitely; C++ negative durations fail. A wake is sticky until consumed by
+indefinitely; finite durations above INT_MAX milliseconds and negative C++ durations fail. A wake is sticky until consumed by
 one wait and coalesces repeated calls. It returns INTERRUPTED and count zero,
 preserving readiness for the next wait. Wake takes priority when both are ready.
 Timeout returns TIMED_OUT and zero count. Releasing a poller with an active wait
-fails Busy; shutdown wakes waiters before release.
+initiates cancellation and fails Busy; join active calls and retry release.
+Shutdown wakes waiters before release.
 
 Admission callbacks may run concurrently. The handler must be thread-safe, bounded,
 and must not reenter the provider, close the listener or initiate runtime shutdown.
@@ -349,7 +352,12 @@ must not synchronously wait for their own dispatcher shutdown.
 
 ## Close and shutdown
 
-object_close initiates closure without waiting for drain. Abort discards pending
+The implemented AbortClose closes admission gates and synchronously waits for
+already-entered nonblocking calls before native close. It never waits for
+application payload delivery. DrainClose and callback-driven deferred cleanup
+below remain future design, explicitly Unsupported in this milestone.
+
+object_close initiates closure without waiting for graceful drain. Abort discards pending
 outbound data; Drain permits the configured finite timeout, then aborts. Repeated
 close is idempotent; Abort may escalate an existing Drain. New I/O fails after
 Closing begins. object_close_status returns PENDING until quiescent, OK after

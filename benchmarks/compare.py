@@ -28,14 +28,14 @@ def artifact(name, module=False):
     raise FileNotFoundError(name)
 
 schedule = [(provider, path) for _ in range(args.runs)
-            for provider in ['robotweax', 'haivision'] for path in ['direct', 'module']]
+            for provider in ['robotweax', 'haivision'] for path in ['direct', 'module', 'facade']]
 random.Random(157033).shuffle(schedule)
 results = []
 for provider, path in schedule:
     if path == 'direct':
         command = [artifact('srtmux_direct_' + provider), str(args.mib)]
     else:
-        command = [artifact('srtmux_module_benchmark'), str(args.mib),
+        command = [artifact('srtmux_' + path + '_benchmark'), str(args.mib),
                    artifact('srtmux_' + provider, module=True), provider,
                    '0.3.3' if provider == 'robotweax' else '1.5.7']
     completed = subprocess.run(command, text=True, capture_output=True, timeout=150)
@@ -47,11 +47,13 @@ for provider, path in schedule:
 summary = {}
 for provider in ['robotweax', 'haivision']:
     direct = [r for r in results if r['provider'] == provider and r['path'] == 'direct']
-    module = [r for r in results if r['provider'] == provider and r['path'] == 'module']
-    ratio = statistics.median(r['mbps'] for r in module) / statistics.median(r['mbps'] for r in direct)
-    cpu_ratio = statistics.median(r['cpu_seconds']/r['bytes'] for r in module) / statistics.median(r['cpu_seconds']/r['bytes'] for r in direct)
-    summary[provider] = {'median_throughput_change_percent': (ratio-1)*100,
-                         'median_cpu_per_byte_change_percent': (cpu_ratio-1)*100}
+    summary[provider] = {}
+    for path in ['module', 'facade']:
+        wrapped = [r for r in results if r['provider'] == provider and r['path'] == path]
+        ratio = statistics.median(r['mbps'] for r in wrapped) / statistics.median(r['mbps'] for r in direct)
+        cpu_ratio = statistics.median(r['cpu_seconds']/r['bytes'] for r in wrapped) / statistics.median(r['cpu_seconds']/r['bytes'] for r in direct)
+        summary[provider][path] = {'median_throughput_change_percent': (ratio-1)*100,
+                                 'median_cpu_per_byte_change_percent': (cpu_ratio-1)*100}
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps({'platform': sys.platform,
     'profile': 'File stream, IPv4 loopback, plaintext, 32 KiB calls, accounting off, 8 MiB warmup; payload verified',

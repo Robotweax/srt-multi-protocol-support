@@ -1,8 +1,9 @@
 # Real provider milestone
 
 This implementation uses the public C ABI in `include/srtmux/provider_abi.h`.
-The higher-level C++ Connection/Listener facade remains a design draft. The host
-Module loader supplies the real modules' function tables to C++ applications now.
+The C++20 facade in `include/srtmux/transport.hpp` owns provider contexts,
+connections, listeners and pollers. The lower-level Module loader also exposes
+the C table for applications that manage their own lifetimes.
 
 ## Build
 
@@ -22,6 +23,19 @@ revision and SHA-256:
 | --- | --- | --- |
 | Robotweax | 0.3.3 | `29c741d35f89a412926c374d6ccb15fa1270833c` |
 | Haivision | 1.5.7 | `899348d8318eb9a3c5a5b6ec43c4a1114288773a` |
+
+Haivision uses the pinned 1.5.7 source **with the local
+[KM/close lifetime patch](haivision-1.5.7-km-close.patch)**. Its asynchronous KMREQ
+and KMRSP handlers otherwise race `closeInternal()` freeing the crypto context.
+Release-mode cross-provider encrypted close stress reproduced a use-after-free;
+native context tracing confirmed processing after free. CMake verifies the exact
+upstream core.cpp checksum and compiles a patched copy, leaving downloaded source
+untouched. The patch takes the existing connection lock only in those two
+key-management handlers and checks closure before accessing crypto. It adds no
+locks to payload or ACK handling. `build_features` records `km-close-fix` with
+the patched source hash; the build fingerprint includes it. Both direct and
+wrapped benchmark paths link the same patched library. This is not an unmodified
+upstream binary. Distribute this patch and the MPL-2.0 upstream source/license.
 
 Each module contains its own static SRT implementation. The OpenSSL library is a
 shared system dependency; the adapter never performs process-global OpenSSL
@@ -44,6 +58,8 @@ build's `providers/licenses` directory remain part of packaging provenance.
 - Provider-scoped generation handles, stale-handle rejection and abort-close.
 - Numeric error capture, optional failure-only text, endpoint/state readback.
 - Optional application-payload counters; disabled accounting does no updates.
+- Provider-local native SRT epoll, level-triggered readiness, sticky cancellation.
+- Concurrent abort-close with nonblocking send, receive and control calls.
 - Runtime startup, serialized shutdown and independent provider cleanup.
 
 All four provider pairings are covered on IPv4 for Live and File, with and without
@@ -73,18 +89,43 @@ systems exhibit the native failure.
    limit before the first data call. Successful connect always returns PENDING in
    this milestone to enforce that completion step.
 5. Send/receive using application-owned buffers. WouldBlock is expected. Retry
-   using application scheduling; the test retry loop is not a production poller.
-6. Stop and join application I/O, then abort-close and release each handle.
+   using a provider-local poller. A poller can register only its own provider
+   context's connections/listeners.
+6. Abort-close to cancel I/O; join application workers before destroying wrappers.
+   Release closed C handles explicitly (C++ RAII does this automatically).
 7. Begin runtime shutdown, check shutdown status, then destroy the empty runtime.
 
 One sending thread and one receiving thread may use an established connection
-concurrently. Statistics may sample their optional counters concurrently. Each
-same-direction I/O stream must have one owner. **Connection control operations
-(including connection_info), close, release and runtime shutdown must be serialized
-by the caller with I/O on the affected objects.** Quiesce all calls before runtime
-shutdown/destroy. Concurrent lifecycle cancellation is not implemented yet; callers
-must not infer it from the broader design draft. Publication/removal locks are
-cold-path only; established I/O performs no global locking or ownership increments.
+concurrently. Serialize same-direction calls and bind/connect setup. Info and
+statistics may run alongside I/O. Abort-close and runtime shutdown may race I/O,
+accept and poll waits: three per-object atomic gates stop new operations, wait
+for admitted nonblocking calls to return, then retire the native socket. TX and
+RX gates use separate cache lines. There is no global mutex, shared_ptr increment,
+allocation, timer read or payload copy on the send/receive path. The gates add
+one acquisition and one release atomic RMW per call; their cost must be measured.
+
+Raw `runtime_destroy` requires all application calls to have returned and all
+handles to be released. It must never race a raw runtime call. C++ objects retain
+the provider context until their own destruction, but callers still must not
+move or destroy a wrapper while another thread uses that wrapper. Destroying a
+TransportRuntime initiates shutdown; surviving objects retain storage for cleanup.
+Repeated loads share one context per module, including across TransportRuntime
+owners: shutdown by any such owner affects that shared context. Use one runtime
+owner for a cooperating group of application components. Setup/control operations
+may allocate and propagate `std::bad_alloc`; compact I/O outcomes do not allocate.
+
+Pollers have one waiter, with concurrent register/update/remove/wake supported.
+Native SRT epoll waits on SRT descriptors and a private wake socket (Unix datagram
+socket pair on POSIX, loopback UDP on Windows). There is no coordinator thread,
+wrapper timer slicing or scan of all registered sockets on each wait. Native
+vendor scheduling still determines wake latency. Wait translates at most 256
+ready events per batch using fixed scratch storage. Finite waits accept 0 through
+INT_MAX milliseconds; `SRTM_WAIT_FOREVER`/`InfiniteWait` is unbounded. Wake is sticky,
+coalesces and wins over readiness. Closed registrations remain ERROR/STATE-ready
+until removed or their object is released. Returned tokens may already be stale;
+applications must check them against their own registration state. Poller release
+with active calls initiates cancellation and returns Busy; join calls and retry.
+Shutdown wakes both providers independently. No library unload occurs during I/O.
 
 A native socket already retired by the vendor is treated as closed when its
 current adapter handle is closed. Unknown or released adapter handles still fail
@@ -98,7 +139,7 @@ Generation exhaustion also fails rather than reusing a stale identity. Pages are
 retained until runtime destruction. No registry allocation occurs in I/O.
 
 Unsupported operations fail with Unsupported rather than succeeding silently:
-provider polling/wake, admission/log callbacks, graceful drain-close, groups,
+admission/log callbacks, graceful drain-close, groups,
 rendezvous, FEC and GCM extensions. Required function-table entries remain present
 so the host can load the evolving ABI; presence is not a capability assertion.
 Receive buffers smaller than the cached Live ceiling fail before vendor receive
@@ -123,14 +164,14 @@ python3 benchmarks/compare.py --build build-real --mib 128 --runs 3 \
   --output results.json
 ```
 
-The runner randomizes/interleaves direct-library and module-ABI transfers built
+The runner randomizes/interleaves direct-library, module-ABI and C++ facade transfers built
 from the same vendor static targets. Both use File/IPv4, plaintext, 32 KiB calls,
 8 MiB warmup, full payload validation, a sender thread and a receiving thread,
 and identical transport settings. It records receiver-completed goodput, total
 process CPU time, configuration fingerprints and raw samples. CPU seconds/byte
 is a portable proxy, not hardware cycle measurement. Retries yield only on
-WouldBlock in both paths. The C++ transport facade is not included because it
-is not implemented yet.
+WouldBlock in all paths. The benchmark deliberately isolates dispatch/I/O cost;
+separate integration tests exercise native polling and simultaneous providers.
 
 This is an exploratory baseline, not the performance release gate. Shared-host
 noise, short trials and a narrow workload cannot prove the 2%/5% draft budgets.

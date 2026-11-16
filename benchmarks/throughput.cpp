@@ -1,5 +1,9 @@
 // Same File/IPv4 transfer loop for direct static-library and module ABI paths.
 #include <srtmux/module.hpp>
+#ifdef SRTMUX_FACADE
+#include <srtmux/transport.hpp>
+#include <optional>
+#endif
 #ifdef SRTMUX_DIRECT
 #include <srt.h>
 #ifndef _WIN32
@@ -54,6 +58,47 @@ struct Backend {
         throw std::runtime_error(srt_getlasterror_str());
     }
     ~Backend() { srt_close(tx); srt_close(rx); srt_close(listener); srt_cleanup(); }
+};
+#elif defined(SRTMUX_FACADE)
+template<class T> T unwrap(srtmux::Result<T> value) {
+    if(auto* e=std::get_if<srtmux::Error>(&value)) throw std::runtime_error(e->message);
+    return std::get<T>(std::move(value));
+}
+struct Backend {
+    srtmux::TransportRuntime runtime = unwrap(srtmux::TransportRuntime::create());
+    srtmux::Provider provider;
+    srtmux::Listener listener;
+    srtmux::Connection tx;
+    std::optional<srtmux::Connection> rx;
+    std::string name, fingerprint;
+    explicit Backend(char** args) : provider(unwrap(runtime.load({args[2], args[3], args[4], {}}))),
+        listener(unwrap(provider.listen({{"127.0.0.1",0,0},8,srtmux::file_stream_profile(),{}}))),
+        tx(unwrap(provider.create_connection(srtmux::file_stream_profile()))),
+        name(provider.info().implementation), fingerprint(provider.info().build_fingerprint) {
+        require(std::holds_alternative<srtmux::Pending>(tx.connect(unwrap(listener.local_endpoint()))), "connect");
+        auto until=Clock::now()+5s; bool connected=false;
+        while(!rx || !connected) {
+            require(Clock::now()<until,"connect timeout");
+            if(!rx) {
+                auto accepted=listener.accept();
+                if(auto* e=std::get_if<srtmux::Error>(&accepted)) throw std::runtime_error(e->message);
+                if(std::holds_alternative<srtmux::Connection>(accepted)) rx.emplace(std::get<srtmux::Connection>(std::move(accepted)));
+            }
+            connected=unwrap(tx.info()).state==srtmux::State::connected;
+            std::this_thread::sleep_for(1ms);
+        }
+        unwrap(rx->info());
+    }
+    int send(const uint8_t* data,int size) {
+        auto result=tx.write_stream({reinterpret_cast<const std::byte*>(data),static_cast<size_t>(size)});
+        if(std::holds_alternative<srtmux::WouldBlock>(result)) return 0;
+        require(std::holds_alternative<size_t>(result),"facade send failed"); return static_cast<int>(std::get<size_t>(result));
+    }
+    int receive(uint8_t* data,int size) {
+        auto result=rx->read_stream({reinterpret_cast<std::byte*>(data),static_cast<size_t>(size)});
+        if(std::holds_alternative<srtmux::WouldBlock>(result)) return 0;
+        require(std::holds_alternative<size_t>(result),"facade receive failed"); return static_cast<int>(std::get<size_t>(result));
+    }
 };
 #else
 struct Backend {
@@ -138,6 +183,8 @@ int main(int argc, char** argv) {
     try {
 #ifdef SRTMUX_DIRECT
         require(argc == 2, "Usage: direct_benchmark MiB"); const char* path = "direct";
+#elif defined(SRTMUX_FACADE)
+        require(argc == 5, "Usage: facade_benchmark MiB module implementation release"); const char* path = "facade";
 #else
         require(argc == 5, "Usage: module_benchmark MiB module implementation release"); const char* path = "module";
 #endif

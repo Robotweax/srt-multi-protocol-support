@@ -2,25 +2,28 @@
 
 A C++20 host for selecting independently isolated SRT implementations at runtime.
 The intended first providers are Robotweax SRT 0.3.3 and Haivision SRT 1.5.7.
-Each provider will statically contain its vendor library and expose a versioned
-C function table. The application-facing transport design is in progress.
+Each provider statically contains its vendor library and exposes a versioned
+C function table behind a C++20 transport facade. The interfaces remain unreleased.
 
 ## Current development milestone
 
 The host loader and real Robotweax 0.3.3 / Haivision 1.5.7 modules are implemented.
 The modules support basic nonblocking caller/listener connections, Live messages,
 File streams, AES-CTR, state/error readback and independent runtime cleanup through
-our C function table. The C++ transport facade remains declaration-only.
+our C function table. Provider-local polling, concurrent abort-close/cancellation,
+and the C++ Connection/Listener/Poller facade are implemented.
 
 See [real provider build and usage](providers/README.md) for exact source pins,
-supported profiles, caller-serialized lifecycle requirements and unsupported APIs.
+supported profiles, concurrency rules and unsupported APIs.
+Haivision 1.5.7 includes a documented native key-management/close lifetime fix.
 Haivision File/IPv6 is explicitly rejected pending qualification after a native
-failure reproduced on macOS. Polling, callbacks and graceful drain-close remain
-future work; they are not silently approximated.
+failure reproduced on macOS. Admission/log callbacks and graceful drain-close
+remain unsupported; they are not silently approximated.
 
 Tests cover all four provider pairings on IPv4, Live IPv6 pairings, simultaneous
 use of both providers, encrypted traffic, stale handles, error-buffer preservation,
-and export isolation. A direct-versus-module benchmark preserves the throughput
+polling, close races, cancellation, facade transfers and export isolation. A
+direct-versus-module-versus-facade benchmark preserves the throughput
 requirement as a measurable gate; no performance qualification is claimed yet.
 
 ## Build and check
@@ -49,7 +52,7 @@ The default host-only build downloads no vendor sources. Enable
 
 - [Module loader](include/srtmux/module.hpp): implemented low-level host API.
 - [Provider ABI](include/srtmux/provider_abi.h): evolving, unreleased interface.
-- [C++ transport draft](docs/design/transport.hpp): declaration-only proposal.
+- [C++ transport facade](include/srtmux/transport.hpp): implemented public interface.
 - [Interface and performance contract](docs/design/README.md): normative design
   requirements, lifecycle rules, proposed qualification budgets and open decisions.
 
@@ -73,11 +76,9 @@ meet the no-extra-payload-copy/no-thread-hop contract and measured throughput ga
 
 ## Next milestones
 
-1. Add provider-local polling and safe concurrent close/cancellation.
-2. Implement the C++ Connection/Listener facade over the working provider ABI.
-3. Add admission callbacks and complete asynchronous failure diagnostics.
-4. Resolve and qualify the native File/IPv6 limitation and broader transport profiles.
-5. Qualify throughput, CPU, latency and loss across the deployment workload matrix.
+1. Add admission callbacks and complete asynchronous failure diagnostics.
+2. Resolve and qualify the native File/IPv6 limitation and broader transport profiles.
+3. Qualify throughput, CPU, latency and loss across the deployment workload matrix.
 
 Keep the working ABI unreleased until these checks establish that its dispatch,
 lifetime and polling choices meet the performance requirement.

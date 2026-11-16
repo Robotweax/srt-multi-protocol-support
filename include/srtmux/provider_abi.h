@@ -307,6 +307,11 @@ typedef struct srtm_provider_api_v1 {
     srtm_status (SRTM_CALL *object_close_status)(srtm_runtime *, srtm_handle, srtm_error_v1 *);
     srtm_status (SRTM_CALL *object_release)(srtm_runtime *, srtm_handle, srtm_error_v1 *);
 
+    /* One waiter per poller; register/remove/wake may race wait. Finite timeout
+     * <= INT_MAX milliseconds. Batches may contain at most 256 events. Wake is
+     * sticky/coalescing and takes priority. Release with active calls cancels
+     * waits and returns Busy; join calls and retry. No concurrent runtime_destroy.
+     */
     srtm_status (SRTM_CALL *poller_create)(srtm_runtime *, srtm_handle *, srtm_error_v1 *);
     srtm_status (SRTM_CALL *poller_register)(srtm_runtime *, srtm_handle poller, srtm_handle object, uint32_t interests, uint64_t token, srtm_error_v1 *);
     srtm_status (SRTM_CALL *poller_remove)(srtm_runtime *, srtm_handle poller, srtm_handle object, srtm_error_v1 *);
