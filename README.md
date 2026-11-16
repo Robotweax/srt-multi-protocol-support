@@ -24,7 +24,10 @@ Tests cover all four provider pairings on IPv4, Live IPv6 pairings, simultaneous
 use of both providers, encrypted traffic, stale handles, error-buffer preservation,
 polling, close races, cancellation, facade transfers and export isolation. A
 direct-versus-module-versus-facade benchmark preserves the throughput
-requirement as a measurable gate; no performance qualification is claimed yet.
+requirement as a measurable gate. Both providers pass the measured local
+File/IPv4 gates after correcting a Haivision polling regression; see the
+[controlled results and confidence bounds](docs/validation/2026-11-16-controlled-throughput.md).
+Broader deployment profiles remain unqualified.
 
 ## Build and check
 

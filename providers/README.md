@@ -178,6 +178,10 @@ Measurements include receiver-completed goodput, whole-process CPU/byte,
 application-thread CPU, call counts, idle receive probes and artifact hashes.
 CPU seconds/byte is a portable proxy, not hardware cycle measurement.
 
+The [controlled local results](../docs/validation/2026-11-16-controlled-throughput.md)
+pass the measured 2% throughput / 5% process-CPU budgets for both wrapped paths
+and both providers, with a narrow Haivision C ABI throughput margin.
+
 Local File/IPv4 findings do not qualify Live, encryption, full duplex, many
 connections, lossy networks or other hosts. Do not trade integrity, concurrency
 safety or delivery latency for a passing throughput number.
