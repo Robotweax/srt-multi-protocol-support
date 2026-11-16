@@ -115,8 +115,13 @@ owner for a cooperating group of application components. Setup/control operation
 may allocate and propagate `std::bad_alloc`; compact I/O outcomes do not allocate.
 
 Pollers have one waiter, with concurrent register/update/remove/wake supported.
-Native SRT epoll waits on SRT descriptors and a private wake socket (Unix datagram
-socket pair on POSIX, loopback UDP on Windows). There is no coordinator thread,
+Haivision uses native `srt_epoll_uwait` with a private unbound SRT notification
+socket. A small bridge, compiled with the pinned vendor target’s own headers and
+definitions, sets its native readiness and signals the vendor event. It creates
+no UDP transport or helper thread. The bridge is private and is included in build
+fingerprints as `native-wake`; no vendor C++ layout crosses the module boundary.
+Robotweax uses `srt_epoll_wait` with a private OS wake socket (Unix datagram socket
+pair on POSIX, loopback UDP on Windows). There is no coordinator thread,
 wrapper timer slicing or scan of all registered sockets on each wait. Native
 vendor scheduling still determines wake latency. Wait translates at most 256
 ready events per batch using fixed scratch storage. Finite waits accept 0 through
@@ -157,25 +162,22 @@ thread handoffs, global mutexes, timing reads or implicit statistics requests.
 Provider dispatch and configuration are resolved before steady-state I/O. Compact
 error records are populated only on failure; text formatting is opt-in on failure.
 
-Build the benchmark option above, then run:
+Build the benchmark option above, then run the controlled local matrix:
 
 ```sh
-python3 benchmarks/compare.py --build build-real --mib 128 --runs 3 \
-  --output results.json
+python3 benchmarks/compare.py --build build-real --mib 2048 --runs 8 \
+  --warmup-mib 256 --probe-calls 20000 --wait poll --output results.json
 ```
 
-The runner randomizes/interleaves direct-library, module-ABI and C++ facade transfers built
-from the same vendor static targets. Both use File/IPv4, plaintext, 32 KiB calls,
-8 MiB warmup, full payload validation, a sender thread and a receiving thread,
-and identical transport settings. It records receiver-completed goodput, total
-process CPU time, configuration fingerprints and raw samples. CPU seconds/byte
-is a portable proxy, not hardware cycle measurement. Retries yield only on
-WouldBlock in all paths. The benchmark deliberately isolates dispatch/I/O cost;
-separate integration tests exercise native polling and simultaneous providers.
+See [the benchmark protocol](../benchmarks/README.md) for paired confidence
+intervals, controls, baseline selection and diagnostic modes. Both providers and
+all three paths (direct native, module ABI, C++ facade) are always included.
+Direct and wrapped paths use the same vendor static targets, including the
+Haivision close fix. The default direct baseline uses native `srt_epoll_uwait`.
+Measurements include receiver-completed goodput, whole-process CPU/byte,
+application-thread CPU, call counts, idle receive probes and artifact hashes.
+CPU seconds/byte is a portable proxy, not hardware cycle measurement.
 
-This is an exploratory baseline, not the performance release gate. Shared-host
-noise, short trials and a narrow workload cannot prove the 2%/5% draft budgets.
-Formal qualification still requires saturated message-rate workloads, full duplex,
-many connections, encryption/loss profiles, latency/drop checks and confidence
-bounds. Do not trade integrity, concurrency safety or delivery latency for a
-passing throughput number.
+Local File/IPv4 findings do not qualify Live, encryption, full duplex, many
+connections, lossy networks or other hosts. Do not trade integrity, concurrency
+safety or delivery latency for a passing throughput number.

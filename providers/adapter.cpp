@@ -3,6 +3,7 @@
 #include <srt.h>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <climits>
 #include <cerrno>
 #include <cstring>
@@ -10,6 +11,7 @@
 #include <mutex>
 #include <new>
 #include <string_view>
+#include <stdexcept>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -23,9 +25,36 @@
 #include <fcntl.h>
 #endif
 
+#ifdef PROVIDER_HAIVISION
+extern "C" void* srtmux_hv_wake_create(int) noexcept;
+extern "C" int srtmux_hv_wake_set(void*, int) noexcept;
+extern "C" void srtmux_hv_wake_destroy(void*) noexcept;
+#endif
 namespace {
 constexpr uint32_t page_size = 256, page_count = 256;
 constexpr uint32_t shut_gate = 1u << 31;
+#ifdef PROVIDER_HAIVISION
+struct WakeChannel {
+    void* native = nullptr;
+    bool signalled = false; // Protected by the owner poller mutex.
+    bool open(int eid) { native = srtmux_hv_wake_create(eid); return native != nullptr; }
+    bool signal() {
+        if (!signalled) {
+            if (srtmux_hv_wake_set(native, 1) != 0) return false;
+            signalled = true;
+        }
+        return true;
+    }
+    void drain(bool = false) {
+        if (signalled) {
+            if (srtmux_hv_wake_set(native, 0) != 0) throw std::runtime_error("Native wake reset failed");
+            signalled = false;
+        }
+    }
+    void reset() { srtmux_hv_wake_destroy(std::exchange(native, nullptr)); }
+    ~WakeChannel() { reset(); }
+};
+#else
 struct WakeChannel {
     SYSSOCKET input = SYSSOCKET_INVALID, output = SYSSOCKET_INVALID;
     bool signalled = false; // Owner poller mutex protects signal/drain.
@@ -37,7 +66,8 @@ struct WakeChannel {
         ::close(s);
 #endif
     }
-    ~WakeChannel() { dispose(input); dispose(output); }
+    void reset() { dispose(std::exchange(input, SYSSOCKET_INVALID)); dispose(std::exchange(output, SYSSOCKET_INVALID)); }
+    ~WakeChannel() { reset(); }
     bool open() {
 #ifndef _WIN32
         int sockets[2];
@@ -69,7 +99,10 @@ struct WakeChannel {
         }
         signalled = true; return true;
     }
-    void drain() {
+    void drain(bool readable = false) {
+        // Only our mutex-protected signal() writes this channel. A native
+        // readiness notification also drains delayed UDP delivery on Windows.
+        if (!signalled && !readable) return;
         char bytes[64];
         while (true) {
             if (::recv(input, bytes, sizeof(bytes), 0) > 0) continue;
@@ -83,6 +116,7 @@ struct WakeChannel {
         signalled = false;
     }
 };
+#endif
 struct Subscription { srtm_handle object; uint64_t token; uint32_t interests; SRTSOCKET socket; };
 struct PollState {
     std::mutex mutex;
@@ -93,9 +127,10 @@ struct PollState {
     std::unordered_map<srtm_handle, Subscription> subscriptions;
     std::unordered_map<SRTSOCKET, srtm_handle> sockets;
     std::vector<srtm_event_v1> terminal;
+    std::array<SRT_EPOLL_EVENT, 256> native_events{};
     std::vector<SRTSOCKET> reads = std::vector<SRTSOCKET>(256);
     std::vector<SRTSOCKET> writes = std::vector<SRTSOCKET>(256);
-    ~PollState() { if (eid >= 0) srt_epoll_release(eid); }
+    ~PollState() { wake.reset(); if (eid >= 0) srt_epoll_release(eid); }
 };
 struct alignas(64) CallGate { std::atomic<uint32_t> count{shut_gate}; };
 struct Entry {
@@ -151,8 +186,9 @@ void clear(srtm_error_v1* out) {
 }
 srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr) {
     int os = 0;
-    const int code = srt_getlasterror(&os);
+    const int code = srt_getlasterror(nullptr);
     if (code == SRT_EASYNCSND || code == SRT_EASYNCRCV) return SRTM_WOULD_BLOCK;
+    srt_getlasterror(&os); // Capture OS detail only on an actual failure.
     uint32_t category = SRTM_ERR_INTERNAL;
     if (code == SRT_EINVSOCK) category = SRTM_ERR_INVALID_HANDLE;
     else if (code == SRT_EINVPARAM) category = SRTM_ERR_INVALID_ARGUMENT;

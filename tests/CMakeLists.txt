@@ -1,5 +1,6 @@
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME benchmark_analysis COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_analysis_test.py")
 
 function(add_fixture name)
   add_library(${name} MODULE mock_provider.cpp)

@@ -28,10 +28,14 @@ srtm_status poller_create(srtm_runtime* r, srtm_handle* out, srtm_error_v1* d) {
     if (!runtime_ok(r) || !out) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid poller arguments", d);
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime stopping", d);
     auto p = std::make_unique<PollState>();
-    if (!p->wake.open()) return error(SRTM_ERR_RESOURCE, "Cannot create poller wake sockets", d);
     p->eid = srt_epoll_create(); if (p->eid < 0) return native_error(d);
+#ifdef PROVIDER_HAIVISION
+    if (!p->wake.open(p->eid)) return error(SRTM_ERR_RESOURCE, "Cannot create native poller wake", d);
+#else
+    if (!p->wake.open()) return error(SRTM_ERR_RESOURCE, "Cannot create poller wake sockets", d);
     int events = SRT_EPOLL_IN;
     if (srt_epoll_add_ssock(p->eid, p->wake.input, &events) != 0) return native_error(d);
+#endif
     SocketOwner none{SRT_INVALID_SOCK};
     return publish(r, none, 0, 0, 0, 0, false, false, false, out, d, std::move(p));
 }
@@ -108,7 +112,8 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
     };
     // A bounded, stack-resident merge table avoids per-event allocation and
     // quadratic merging of read/write events. It is independent of registry size.
-    struct Merge { srtm_handle handle = 0; uint32_t index = 0; };
+    struct Merge { srtm_handle handle; uint32_t index; };
+    const size_t merge_size = std::bit_ceil(capacity*2u);
     while (true) {
         {
             std::lock_guard lock(p.mutex);
@@ -122,29 +127,44 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
             }
             p.wake.drain();
         }
+#ifndef PROVIDER_HAIVISION
         int rn = static_cast<int>(capacity), wn = static_cast<int>(capacity), sn = 1;
         SYSSOCKET native_ready = SYSSOCKET_INVALID;
+#endif
         int64_t wait_ms = -1;
         if (timeout != SRTM_WAIT_FOREVER) {
             auto remaining = deadline-Clock::now();
             wait_ms = remaining <= Clock::duration::zero() ? 0 : std::chrono::ceil<std::chrono::milliseconds>(remaining).count();
         }
+#ifdef PROVIDER_HAIVISION
+        int result = srt_epoll_uwait(p.eid, p.native_events.data(), static_cast<int>(capacity), wait_ms);
+#else
         int result = srt_epoll_wait(p.eid, p.reads.data(), &rn, p.writes.data(), &wn,
             wait_ms, &native_ready, &sn, nullptr, nullptr);
+#endif
         if (result < 0) {
             const int code = srt_getlasterror(nullptr);
             if (code != SRT_ETIMEOUT && code != SRT_EASYNCRCV) return native_error(d, io);
+#ifdef PROVIDER_HAIVISION
+            result = 0;
+#else
             rn = wn = sn = 0;
+#endif
         }
         std::lock_guard lock(p.mutex);
         if (p.interrupted || p.closing) { p.interrupted = false; p.wake.drain(); *count = 0; return SRTM_INTERRUPTED; }
-        if (sn) p.wake.drain();
+#ifdef PROVIDER_HAIVISION
+        p.wake.drain(); // Registration notifications are not user cancellation.
+#else
+        if (sn) p.wake.drain(true);
+#endif
         uint32_t written = 0;
-        std::array<Merge, poll_batch*2> merge{};
+        std::array<Merge, poll_batch*2> merge;
+        std::fill_n(merge.begin(), merge_size, Merge{0, 0});
         auto append = [&](const Subscription& sub, uint32_t ready) {
             if (!ready) return;
-            size_t key = static_cast<size_t>((sub.object ^ (sub.object >> 16))*UINT64_C(11400714819323198485)) % merge.size();
-            while (merge[key].handle && merge[key].handle != sub.object) key = (key+1)%merge.size();
+            size_t key = static_cast<size_t>((sub.object ^ (sub.object >> 16))*UINT64_C(11400714819323198485)) & (merge_size-1);
+            while (merge[key].handle && merge[key].handle != sub.object) key = (key+1)&(merge_size-1);
             if (merge[key].handle) {
                 auto* out = reinterpret_cast<srtm_event_v1*>(reinterpret_cast<char*>(events)+size_t(merge[key].index)*stride);
                 out->readiness |= ready;
@@ -153,18 +173,42 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
                 output(written++, {sizeof(srtm_event_v1), ready, sub.object, sub.token});
             }
         };
+#ifdef PROVIDER_HAIVISION
+        for (int i = 0; i < result; ++i) {
+            const auto& event = p.native_events[static_cast<size_t>(i)];
+            auto found = p.sockets.find(event.fd); if (found == p.sockets.end()) continue; // Private wake identity.
+            auto sub = p.subscriptions.find(found->second); if (sub == p.subscriptions.end()) continue;
+            uint32_t ready = 0;
+            if (event.events & SRT_EPOLL_IN) ready |= SRTM_READY_READ;
+            if (event.events & SRT_EPOLL_OUT) ready |= SRTM_READY_WRITE;
+            ready &= sub->second.interests;
+            if (event.events & SRT_EPOLL_ERR) ready |= SRTM_READY_ERROR | (sub->second.interests & SRTM_READY_STATE);
+            else if ((sub->second.interests & SRTM_READY_STATE) && srt_getsockstate(event.fd) == SRTS_CONNECTED)
+                ready |= SRTM_READY_STATE;
+            append(sub->second, ready);
+        }
+#else
         auto translate = [&](SRTSOCKET socket, uint32_t direction) {
             auto found = p.sockets.find(socket); if (found == p.sockets.end()) return;
             auto sub = p.subscriptions.find(found->second); if (sub == p.subscriptions.end()) return;
-            const auto state = srt_getsockstate(socket);
             uint32_t ready = direction & sub->second.interests;
-            if (state == SRTS_CONNECTED) ready |= sub->second.interests & SRTM_READY_STATE;
-            if (state == SRTS_BROKEN || state == SRTS_CLOSING || state == SRTS_CLOSED || state == SRTS_NONEXIST)
-                ready |= SRTM_READY_ERROR | (sub->second.interests & SRTM_READY_STATE);
+            // Both pinned vendors report ERR in BOTH native sets (we always
+            // supply nonempty arrays for both). With an empty opposite set,
+            // ordinary readiness needs no additional global socket-state lookup.
+            // STATE or mixed batches retain the full query, including overflow
+            // and concurrent registration changes. Readiness remains advisory.
+            const bool opposite_ready = direction == SRTM_READY_READ ? wn != 0 : rn != 0;
+            if ((sub->second.interests & SRTM_READY_STATE) || opposite_ready) {
+                const auto state = srt_getsockstate(socket);
+                if (state == SRTS_CONNECTED) ready |= sub->second.interests & SRTM_READY_STATE;
+                if (state == SRTS_BROKEN || state == SRTS_CLOSING || state == SRTS_CLOSED || state == SRTS_NONEXIST)
+                    ready |= SRTM_READY_ERROR | (sub->second.interests & SRTM_READY_STATE);
+            }
             append(sub->second, ready);
         };
         for (int i = 0; i < rn; ++i) translate(p.reads[static_cast<size_t>(i)], SRTM_READY_READ);
         for (int i = 0; i < wn; ++i) translate(p.writes[static_cast<size_t>(i)], SRTM_READY_WRITE);
+#endif
         for (auto& event : p.terminal) {
             auto found = p.subscriptions.find(event.object);
             if (found != p.subscriptions.end()) append(found->second, event.readiness);

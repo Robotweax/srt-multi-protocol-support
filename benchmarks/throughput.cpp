@@ -11,6 +11,15 @@
 #endif
 #endif
 #include <algorithm>
+#include <array>
+#include <cstdlib>
+#include <iomanip>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 #include <atomic>
 #include <chrono>
 #include <ctime>
@@ -23,10 +32,30 @@
 using Clock = std::chrono::steady_clock;
 using namespace std::chrono_literals;
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
+bool use_poll = false;
+bool native_legacy = false;
+size_t chunk_bytes = 32768;
+uint64_t setting(const char* name, uint64_t fallback, uint64_t maximum) {
+    const char* text = std::getenv(name); if (!text) return fallback;
+    size_t used = 0; auto value = std::stoull(text, &used);
+    require(used == std::string(text).size() && value <= maximum, "Invalid benchmark setting"); return value;
+}
+double thread_cpu() {
+#ifdef _WIN32
+    FILETIME created, exited, kernel, user;
+    require(GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user) != 0, "thread CPU clock");
+    auto ticks=[](FILETIME t) { return (uint64_t(t.dwHighDateTime)<<32)|t.dwLowDateTime; };
+    return double(ticks(kernel)+ticks(user))*1e-7;
+#else
+    timespec t{}; require(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) == 0, "thread CPU clock");
+    return double(t.tv_sec)+double(t.tv_nsec)*1e-9;
+#endif
+}
 template<class T> T record() { T v{}; v.struct_size = sizeof(v); return v; }
 #ifdef SRTMUX_DIRECT
 struct Backend {
     SRTSOCKET listener = -1, tx = -1, rx = -1;
+    int tp = -1, rp = -1;
     const char* name = BENCHMARK_PROVIDER;
     const char* fingerprint = BENCHMARK_FINGERPRINT;
     explicit Backend(char**) {
@@ -49,6 +78,22 @@ struct Backend {
             std::this_thread::sleep_for(1ms);
         }
     }
+    void prepare_poll() {
+        tp=srt_epoll_create(); rp=srt_epoll_create(); require(tp>=0 && rp>=0,"epoll create");
+        int out=SRT_EPOLL_OUT|SRT_EPOLL_ERR, in=SRT_EPOLL_IN|SRT_EPOLL_ERR;
+        require(srt_epoll_add_usock(tp,tx,&out)==0 && srt_epoll_add_usock(rp,rx,&in)==0,"epoll register");
+    }
+    void wait(bool send) {
+        if (native_legacy) {
+            SRTSOCKET socket; int n=1;
+            int rc=send ? srt_epoll_wait(tp,nullptr,nullptr,&socket,&n,5000,nullptr,nullptr,nullptr,nullptr)
+                        : srt_epoll_wait(rp,&socket,&n,nullptr,nullptr,5000,nullptr,nullptr,nullptr,nullptr);
+            require(rc>0,"native readiness timeout/failure");
+        } else {
+            SRT_EPOLL_EVENT event{};
+            require(srt_epoll_uwait(send?tp:rp,&event,1,5000)>0,"native readiness timeout/failure");
+        }
+    }
     int send(const uint8_t* data, int size) { return result(srt_send(tx, reinterpret_cast<const char*>(data), size)); }
     int receive(uint8_t* data, int size) { return result(srt_recv(rx, reinterpret_cast<char*>(data), size)); }
     static int result(int n) {
@@ -57,7 +102,7 @@ struct Backend {
         if (error == SRT_EASYNCSND || error == SRT_EASYNCRCV) return 0;
         throw std::runtime_error(srt_getlasterror_str());
     }
-    ~Backend() { srt_close(tx); srt_close(rx); srt_close(listener); srt_cleanup(); }
+    ~Backend() { if(tp>=0) srt_epoll_release(tp); if(rp>=0) srt_epoll_release(rp); srt_close(tx); srt_close(rx); srt_close(listener); srt_cleanup(); }
 };
 #elif defined(SRTMUX_FACADE)
 template<class T> T unwrap(srtmux::Result<T> value) {
@@ -70,6 +115,7 @@ struct Backend {
     srtmux::Listener listener;
     srtmux::Connection tx;
     std::optional<srtmux::Connection> rx;
+    std::optional<srtmux::Poller> tp, rp;
     std::string name, fingerprint;
     explicit Backend(char** args) : provider(unwrap(runtime.load({args[2], args[3], args[4], {}}))),
         listener(unwrap(provider.listen({{"127.0.0.1",0,0},8,srtmux::file_stream_profile(),{}}))),
@@ -89,6 +135,15 @@ struct Backend {
         }
         unwrap(rx->info());
     }
+    void prepare_poll() {
+        tp.emplace(unwrap(provider.create_poller())); rp.emplace(unwrap(provider.create_poller()));
+        unwrap(tp->add(tx,srtmux::Interest::write)); unwrap(rp->add(*rx,srtmux::Interest::read));
+    }
+    void wait(bool send) {
+        std::array<srtmux::Event,1> events{};
+        auto result=(send?*tp:*rp).wait(events,5000ms);
+        require(std::holds_alternative<size_t>(result) && std::get<size_t>(result)>0,"facade readiness timeout/failure");
+    }
     int send(const uint8_t* data,int size) {
         auto result=tx.write_stream({reinterpret_cast<const std::byte*>(data),static_cast<size_t>(size)});
         if(std::holds_alternative<srtmux::WouldBlock>(result)) return 0;
@@ -105,7 +160,7 @@ struct Backend {
     srtmux::host::Module module;
     const srtm_provider_api_v1& api;
     srtm_runtime* runtime = nullptr;
-    srtm_handle listener = 0, tx = 0, rx = 0;
+    srtm_handle listener = 0, tx = 0, rx = 0, tp = 0, rp = 0;
     std::string name, fingerprint;
     static srtmux::host::Module load(char** args) {
         auto m = srtmux::host::Module::load({args[2], args[3], args[4], {}});
@@ -135,6 +190,17 @@ struct Backend {
         auto info = record<srtm_connection_info_v1>(); info.terminal_error = record<srtm_error_v1>();
         require(api.connection_info(runtime, rx, &info, &error) == SRTM_OK, error.message);
     }
+    void prepare_poll() {
+        auto e=record<srtm_error_v1>();
+        require(api.poller_create(runtime,&tp,&e)==SRTM_OK && api.poller_create(runtime,&rp,&e)==SRTM_OK,e.message);
+        require(api.poller_register(runtime,tp,tx,SRTM_READY_WRITE,1,&e)==SRTM_OK &&
+                api.poller_register(runtime,rp,rx,SRTM_READY_READ,2,&e)==SRTM_OK,e.message);
+    }
+    void wait(bool send) {
+        auto event=record<srtm_event_v1>(); auto error=record<srtm_io_error_v1>(); uint32_t n=0;
+        require(api.poller_wait(runtime,send?tp:rp,5000,&event,1,sizeof(event),&n,&error,nullptr)==SRTM_OK && n>0,
+                "module readiness timeout/failure");
+    }
     int send(const uint8_t* data, int size) {
         uint64_t n = 0; auto error = record<srtm_io_error_v1>();
         auto result = api.write_stream(runtime, tx, {data, static_cast<uint64_t>(size)}, &n, &error, nullptr);
@@ -147,37 +213,46 @@ struct Backend {
     }
     ~Backend() {
         if (!runtime) return;
+        for (auto h : {tp,rp}) if(h) api.poller_release(runtime,h,nullptr);
         for (auto h : {tx, rx, listener}) { api.object_close(runtime, h, SRTM_CLOSE_ABORT, 0, nullptr); api.object_release(runtime, h, nullptr); }
         api.runtime_begin_shutdown(runtime, nullptr); api.runtime_destroy(runtime, nullptr);
     }
 };
 #endif
-struct Sample { double seconds, cpu_seconds; };
+struct Counts { uint64_t calls=0, would_block=0; double cpu=0; };
+struct Sample { double seconds, cpu_seconds; Counts tx, rx; };
 Sample transfer(Backend& backend, uint64_t bytes) {
-    std::vector<uint8_t> input(32768, 0x5a), output(32768);
+    std::vector<uint8_t> input(chunk_bytes, 0x5a), output(chunk_bytes);
+    Counts tx, rx;
     std::atomic<bool> cancel{false}; std::exception_ptr sender_error;
     auto start = Clock::now(); auto cpu = std::clock();
     std::jthread sender([&] {
         try {
-            uint64_t sent = 0;
+            uint64_t sent = 0; Counts counters; auto cpu_start=thread_cpu();
             while (sent < bytes && !cancel.load(std::memory_order_relaxed)) {
                 int n = backend.send(input.data(), static_cast<int>(std::min<uint64_t>(input.size(), bytes-sent)));
-                if (!n) { require(Clock::now()-start < 60s, "sender deadline"); std::this_thread::yield(); }
+                ++counters.calls;
+                if (!n) { ++counters.would_block; require(Clock::now()-start < 180s, "sender deadline");
+                    if(use_poll) backend.wait(true); else std::this_thread::yield(); }
                 sent += static_cast<uint64_t>(n);
             }
+            counters.cpu=thread_cpu()-cpu_start; tx=counters;
         } catch (...) { sender_error = std::current_exception(); cancel.store(true); }
     });
     try {
-        uint64_t received = 0;
+        uint64_t received = 0; auto cpu_start=thread_cpu();
         while (received < bytes && !cancel.load(std::memory_order_relaxed)) {
             int n = backend.receive(output.data(), static_cast<int>(std::min<uint64_t>(output.size(), bytes-received)));
-            if (!n) { require(Clock::now()-start < 60s, "receiver deadline"); std::this_thread::yield(); }
+            ++rx.calls;
+            if (!n) { ++rx.would_block; require(Clock::now()-start < 180s, "receiver deadline");
+                if(use_poll) backend.wait(false); else std::this_thread::yield(); }
             else require(std::all_of(output.begin(), output.begin()+n, [](uint8_t b) { return b == 0x5a; }), "payload corruption");
             received += static_cast<uint64_t>(n);
         }
+        require(received==bytes,"incomplete delivery"); rx.cpu=thread_cpu()-cpu_start;
     } catch (...) { cancel.store(true); sender.join(); throw; }
     sender.join(); if (sender_error) std::rethrow_exception(sender_error);
-    return {std::chrono::duration<double>(Clock::now()-start).count(), double(std::clock()-cpu)/CLOCKS_PER_SEC};
+    return {std::chrono::duration<double>(Clock::now()-start).count(), double(std::clock()-cpu)/CLOCKS_PER_SEC, tx, rx};
 }
 int main(int argc, char** argv) {
     try {
@@ -189,10 +264,27 @@ int main(int argc, char** argv) {
         require(argc == 5, "Usage: module_benchmark MiB module implementation release"); const char* path = "module";
 #endif
         const auto mib = std::stoull(argv[1]); require(mib > 0 && mib <= 4096, "MiB must be 1..4096");
-        Backend backend(argv); transfer(backend, 8*1024*1024);
+        use_poll = setting("SRTMUX_BENCH_POLL",0,1)!=0;
+        native_legacy = setting("SRTMUX_BENCH_NATIVE_LEGACY",0,1)!=0;
+        chunk_bytes=static_cast<size_t>(setting("SRTMUX_BENCH_CHUNK",32768,1048576)); require(chunk_bytes>0,"zero chunk");
+        auto warmup=setting("SRTMUX_BENCH_WARMUP_MIB",8,4096);
+        auto probes=setting("SRTMUX_BENCH_PROBES",0,10000000);
+        Backend backend(argv); if(use_poll) backend.prepare_poll();
+        // Connected, idle receive: same native WouldBlock call, no payload or retry scheduler.
+        std::vector<uint8_t> probe_buffer(chunk_bytes);
+        auto probe_start=thread_cpu();
+        for(uint64_t i=0;i<probes;++i) require(backend.receive(probe_buffer.data(),static_cast<int>(chunk_bytes))==0,"probe not idle");
+        double probe_cpu=thread_cpu()-probe_start;
+        if(warmup) transfer(backend,warmup*1024*1024);
         const auto sample = transfer(backend, mib*1024*1024);
-        std::cout << "{\"provider\":\"" << backend.name << "\",\"path\":\"" << path << "\",\"bytes\":" << mib*1024*1024
+        std::cout << std::setprecision(12) << "{\"provider\":\"" << backend.name << "\",\"path\":\"" << path << "\",\"bytes\":" << mib*1024*1024
             << ",\"build_fingerprint\":\"" << backend.fingerprint << "\",\"seconds\":" << sample.seconds << ",\"cpu_seconds\":" << sample.cpu_seconds
+            << ",\"wait\":\"" << (use_poll?"poll":"yield") << "\",\"chunk_bytes\":" << chunk_bytes
+            << ",\"warmup_mib\":" << warmup << ",\"tx_calls\":" << sample.tx.calls << ",\"rx_calls\":" << sample.rx.calls
+            << ",\"tx_would_block\":" << sample.tx.would_block << ",\"rx_would_block\":" << sample.rx.would_block
+            << ",\"application_cpu_seconds\":" << sample.tx.cpu+sample.rx.cpu
+            << ",\"sender_cpu_seconds\":" << sample.tx.cpu << ",\"receiver_cpu_seconds\":" << sample.rx.cpu
+            << ",\"probe_calls\":" << probes << ",\"probe_cpu_seconds\":" << probe_cpu
             << ",\"mbps\":" << double(mib)*1024*1024*8/sample.seconds/1e6 << "}\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

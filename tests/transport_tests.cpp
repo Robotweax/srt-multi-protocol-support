@@ -115,6 +115,36 @@ void transfer(Provider& caller, Provider& server, bool file, bool encrypted) {
     std::array<Event,1> events{};
     require(std::holds_alternative<TimedOut>(pair.sp.wait(events,0ms)), "stale close event after remove");
 }
+void polling_batches(Provider& caller, Provider& server) {
+    auto poller=take(server.create_poller());
+    std::array<std::unique_ptr<Pair>,3> pairs;
+    std::array<Registration,3> registrations{};
+    std::array<bool,3> done{};
+    for(size_t i=0;i<pairs.size();++i) {
+        pairs[i]=std::make_unique<Pair>(caller,server,file_stream_profile());
+        registrations[i]=take(poller.add(*pairs[i]->rx,Interest::read));
+        std::array<std::byte,1> byte{std::byte(i+1)};
+        auto sent=pairs[i]->tx.write_stream(byte);
+        require(std::holds_alternative<size_t>(sent) && std::get<size_t>(sent)==1,"batch send");
+    }
+    size_t received=0;
+    while(received<pairs.size()) {
+        std::array<Event,3> events{}; // Non-power-of-two output capacity.
+        auto result=poller.wait(events,3s);
+        require(std::holds_alternative<size_t>(result),"batch readiness");
+        for(size_t j=0;j<std::get<size_t>(result);++j) {
+            size_t i=0; while(i<pairs.size() && registrations[i].id!=events[j].registration.id) ++i;
+            require(i<pairs.size() && !done[i] && contains(events[j].readiness,Interest::read),"batch token/readiness");
+            std::array<std::byte,1> byte{}; auto got=pairs[i]->rx->read_stream(byte);
+            require(std::holds_alternative<size_t>(got) && std::get<size_t>(got)==1 && byte[0]==std::byte(i+1),"batch payload");
+            take(poller.remove(registrations[i])); done[i]=true; ++received;
+        }
+    }
+    // Remote failure must still report ERROR for a read-only subscription.
+    auto token=take(poller.add(*pairs[0]->rx,Interest::read));
+    require(std::holds_alternative<Success>(pairs[0]->tx.close(AbortClose{})),"peer close");
+    ready(poller,token,Interest::error);
+}
 int main(int argc,char** argv) {
     try {
         require(argc==4,"two providers and load order required");
@@ -127,6 +157,7 @@ int main(int argc,char** argv) {
         auto again=take(runtime.load({argv[1],"robotweax","0.3.3",{}}));
         require(take(again.now()).clock_domain==take((reversed?second:first).now()).clock_domain,"duplicate runtime startup");
         cancellation(first); cancellation(second);
+        polling_batches(first,second); polling_batches(second,first);
         for(bool file:{false,true}) for(bool encrypted:{false,true}) {
             transfer(first,second,file,encrypted); transfer(second,first,file,encrypted);
         }
