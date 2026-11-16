@@ -182,6 +182,12 @@ The [controlled local results](../docs/validation/2026-11-16-controlled-throughp
 pass the measured 2% throughput / 5% process-CPU budgets for both wrapped paths
 and both providers, with a narrow Haivision C ABI throughput margin.
 
-Local File/IPv4 findings do not qualify Live, encryption, full duplex, many
-connections, lossy networks or other hosts. Do not trade integrity, concurrency
-safety or delivery latency for a passing throughput number.
+The [Live and encrypted File matrix](../docs/validation/2026-11-16-live-encrypted-throughput.md)
+also passes those gates for both API paths and both providers: plaintext Live,
+AES-128-CTR Live (1,316-byte messages, 120 ms latency), and AES-128-CTR File,
+all on local IPv4. The benchmark checks Live sequence continuity and complete
+payload delivery, plus negotiated encryption before and after each measured run.
+
+These local measurements do not qualify other Live payloads, other key sizes,
+full duplex, many connections, lossy networks or other hosts. Do not trade
+integrity, concurrency safety or delivery latency for a passing throughput number.

@@ -26,8 +26,10 @@ polling, close races, cancellation, facade transfers and export isolation. A
 direct-versus-module-versus-facade benchmark preserves the throughput
 requirement as a measurable gate. Both providers pass the measured local
 File/IPv4 gates after correcting a Haivision polling regression; see the
-[controlled results and confidence bounds](docs/validation/2026-11-16-controlled-throughput.md).
-Broader deployment profiles remain unqualified.
+[controlled File results](docs/validation/2026-11-16-controlled-throughput.md).
+[Controlled Live and encrypted File tests](docs/validation/2026-11-16-live-encrypted-throughput.md)
+also pass both gates for both providers and API paths: IPv4 loopback, 1,316-byte
+Live messages, and AES-128-CTR. Broader deployment profiles remain unqualified.
 
 ## Build and check
 
