@@ -26,6 +26,11 @@ function(srtmux_warnings target)
 endfunction()
 srtmux_warnings(srtmux_host)
 
+option(SRTMUX_BUILD_PROVIDERS "Build pinned real SRT provider modules (downloads sources)" OFF)
+if(SRTMUX_BUILD_PROVIDERS)
+  add_subdirectory(providers)
+endif()
+
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()

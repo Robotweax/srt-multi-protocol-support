@@ -7,20 +7,21 @@ C function table. The application-facing transport design is in progress.
 
 ## Current development milestone
 
-Implemented: cross-platform module loading, exact implementation/release matching,
-optional build fingerprint matching, ABI and required-slot validation, immutable
-cached dispatch, process-lifetime module pinning and concurrent-load coordination.
-Module loading does not create a vendor runtime or transfer any network data.
+The host loader and real Robotweax 0.3.3 / Haivision 1.5.7 modules are implemented.
+The modules support basic nonblocking caller/listener connections, Live messages,
+File streams, AES-CTR, state/error readback and independent runtime cleanup through
+our C function table. The C++ transport facade remains declaration-only.
 
-Tests load two deliberately colliding fixture modules in both orders, exercise
-independent runtime state/cleanup, reject malformed ABI tables and descriptors,
-and check the dynamic export allowlist on Linux/macOS. The fixtures are test-only;
-they are not Robotweax or Haivision adapters. Windows loader/build support has a
-CI job; it must pass there before platform qualification is claimed.
+See [real provider build and usage](providers/README.md) for exact source pins,
+supported profiles, caller-serialized lifecycle requirements and unsupported APIs.
+Haivision File/IPv6 is explicitly rejected pending qualification after a native
+failure reproduced on macOS. Polling, callbacks and graceful drain-close remain
+future work; they are not silently approximated.
 
-Not implemented yet: real SRT provider adapters, application Connection/Listener/
-Poller implementations, network interoperability, installation/package exports,
-and throughput qualification. No performance claim follows from loader tests.
+Tests cover all four provider pairings on IPv4, Live IPv6 pairings, simultaneous
+use of both providers, encrypted traffic, stale handles, error-buffer preservation,
+and export isolation. A direct-versus-module benchmark preserves the throughput
+requirement as a measurable gate; no performance qualification is claimed yet.
 
 ## Build and check
 
@@ -41,7 +42,8 @@ ctest --test-dir build-asan --output-on-failure
 ```
 
 `BUILD_TESTING=OFF` builds just the host library without test fixtures or Python.
-There are no vendor downloads during configure/build in this milestone.
+The default host-only build downloads no vendor sources. Enable
+`SRTMUX_BUILD_PROVIDERS=ON` for checksum-pinned real builds requiring OpenSSL 3.
 
 ## Interfaces
 
@@ -71,15 +73,11 @@ meet the no-extra-payload-copy/no-thread-hop contract and measured throughput ga
 
 ## Next milestones
 
-1. Build pinned static Robotweax/Haivision artifacts into private modules and
-   qualify exported symbols plus crypto dependency binding on each platform.
-2. Implement runtime/connection ownership and a common ordinary Live/Message
-   vertical slice, with cancellation and close correctness tests.
-3. Add listener admission, readiness polling, File/Stream I/O and encrypted
-   interoperability across all four provider pairings.
-4. Measure direct-library versus C ABI versus C++ paths under saturated traffic,
-   small messages, full duplex and many connections. Significant throughput
-   regression blocks release; the numeric budgets remain draft proposals.
+1. Add provider-local polling and safe concurrent close/cancellation.
+2. Implement the C++ Connection/Listener facade over the working provider ABI.
+3. Add admission callbacks and complete asynchronous failure diagnostics.
+4. Resolve and qualify the native File/IPv6 limitation and broader transport profiles.
+5. Qualify throughput, CPU, latency and loss across the deployment workload matrix.
 
-Keep the working ABI explicitly unreleased until these checks establish that its
-dispatch, lifetime and polling choices meet the performance requirement.
+Keep the working ABI unreleased until these checks establish that its dispatch,
+lifetime and polling choices meet the performance requirement.

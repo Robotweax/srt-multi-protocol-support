@@ -55,3 +55,19 @@ if(APPLE OR UNIX)
     "${CMAKE_CURRENT_SOURCE_DIR}/check_exports.py" "${CMAKE_NM}"
     $<TARGET_FILE:provider_a> $<TARGET_FILE:provider_b>)
 endif()
+
+if(SRTMUX_BUILD_PROVIDERS)
+  add_executable(real_provider_tests real_providers.cpp)
+  target_link_libraries(real_provider_tests PRIVATE SrtMux::host Threads::Threads)
+  srtmux_warnings(real_provider_tests)
+  foreach(order IN ITEMS normal reversed)
+    add_test(NAME real_providers_${order} COMMAND real_provider_tests
+      $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision> ${order})
+    set_tests_properties(real_providers_${order} PROPERTIES TIMEOUT 180)
+  endforeach()
+  if(APPLE OR UNIX)
+    add_test(NAME real_provider_exports COMMAND ${Python3_EXECUTABLE}
+      "${CMAKE_CURRENT_SOURCE_DIR}/check_exports.py" "${CMAKE_NM}"
+      $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision>)
+  endif()
+endif()

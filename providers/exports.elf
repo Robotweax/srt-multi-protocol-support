@@ -1,0 +1,1 @@
+{ global: srtm_provider_get_api; local: *; };

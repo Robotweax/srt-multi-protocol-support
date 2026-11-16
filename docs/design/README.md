@@ -3,8 +3,10 @@
 Status: design draft v0.2, 16 November 2026. These are declaration-only design
 artifacts for private modules containing Robotweax SRT 0.3.3 and Haivision SRT
 1.5.7. The transport facade is declaration-only. The provider ABI is now exercised by
-the host module loader and test fixtures; it is not a released ABI. There are no
-real SRT adapters or network I/O implementations yet.
+the host module loader and test fixtures; it is not a released ABI. Real basic-I/O adapters now exist. Their narrower implemented profile, including
+caller-serialized lifecycle operations and explicit unsupported features, is
+documented in [the provider milestone](../../providers/README.md). The full
+contract below remains the target design, not a claim of completed implementation.
 
 Throughput preservation is a release requirement. The abstraction must not
 significantly reduce the performance attainable with either vendor library used
