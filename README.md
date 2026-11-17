@@ -58,7 +58,11 @@ records native feature gaps and the versioned design. The first stage provides
 providers and the C++ facade; later extension features remain unsupported.
 [Polling review fixes](docs/validation/2026-11-17-polling-review-fixes.md) address
 ready-event starvation and facade registration cleanup and are included in the
-latest measured source. Earlier [controlled File](docs/validation/2026-11-16-controlled-throughput.md),
+latest measured source. Later [foundation review fixes](docs/validation/2026-11-17-foundation-review-fixes.md)
+give Robotweax a native poller wake, make close notification and per-wait work
+independent of registry size and output capacity, move handle generations to
+per-slot ranges and report wrong passphrases as authentication failures; they
+postdate the measured source and its throughput records. Earlier [controlled File](docs/validation/2026-11-16-controlled-throughput.md),
 [Live/encrypted](docs/validation/2026-11-16-live-encrypted-throughput.md),
 [profiles/telemetry](docs/validation/2026-11-16-profiles-telemetry.md) and
 [File investigation](docs/validation/2026-11-17-file-qualification.md) reports remain
