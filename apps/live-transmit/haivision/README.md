@@ -11,3 +11,7 @@ duplicate query fields and NULs.
 The new relay and transport adapter are in the parent directory. They use the
 multi-SRT facade rather than Haivision's native SRT/UDT API. This is a port of the
 application workflow and supported CLI, not an unmodified upstream executable.
+
+`../stats.cpp` is new code, but it deliberately reproduces the output layouts of
+`apps/statswriter.cpp` from the same revision (two-column text, JSON and CSV
+field names and order) so tools that parse the original's statistics keep working.

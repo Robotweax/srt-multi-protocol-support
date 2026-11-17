@@ -1,5 +1,6 @@
 #pragma once
 #include "options.hpp"
+#include "stats.hpp"
 #include <chrono>
 
 namespace live_transmit {
@@ -38,6 +39,8 @@ public:
     virtual Write write(std::span<const std::byte>) { throw std::logic_error("Not an output medium"); }
     virtual void wait(std::chrono::milliseconds) = 0;
     virtual std::string statistics() { return "null"; }
+    // Native counters of a connected SRT endpoint; false for anything else.
+    virtual bool native_stats(NativeStats&) { return false; }
 };
 std::unique_ptr<Medium> open_medium(EndpointOptions, bool input, const Options&, Providers&);
 }
