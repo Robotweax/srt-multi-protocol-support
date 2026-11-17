@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
                     sink.bind(('127.0.0.1', 0)); srt_port, udp_port = port(), port()
                     group = Processes(root)
                     try:
-                        receiver = group.start('receiver', f'srt://127.0.0.1:{srt_port}?mode=listener&provider={receiver_provider}{security}', f'udp://127.0.0.1:{sink.getsockname()[1]}', '--provider', 'haivision' if receiver_provider == 'robotweax' else 'robotweax', '-a:no', '-s:1', '-pf:json', '-statsout', str(root / 'stats.jsonl'))
+                        receiver = group.start('receiver', f'srt://127.0.0.1:{srt_port}?mode=listener&provider={receiver_provider}{security}', f'udp://127.0.0.1:{sink.getsockname()[1]}', '--provider', 'haivision' if receiver_provider == 'robotweax' else 'robotweax', '-a:no', '-s:1', '-pf:relay-json', '-statsout', str(root / 'stats.jsonl'))
                         group.ready(receiver, 'Listening source')
                         sender_uri = f'srt://127.0.0.1:{srt_port}?mode=caller{security}'
                         default_provider = sender_provider
@@ -180,6 +180,42 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             sender[0].wait(timeout=12)
             assert sender[0].returncode != 0 and secret not in sender[1].read_text()
         finally: group.close(check=False)
+    # SRT endpoint statistics use the original's three formats on both sides.
+    sections = {'window': ['flow', 'congestion', 'flight'], 'link': ['rtt', 'bandwidth', 'maxBandwidth'],
+        'send': ['packets', 'packetsUnique', 'packetsLost', 'packetsDropped', 'packetsRetransmitted', 'packetsFilterExtra', 'bytes', 'bytesUnique', 'bytesDropped', 'byteAvailBuf', 'msBuf', 'mbitRate', 'sendPeriod'],
+        'recv': ['packets', 'packetsUnique', 'packetsLost', 'packetsDropped', 'packetsRetransmitted', 'packetsBelated', 'packetsFilterExtra', 'packetsFilterSupply', 'packetsFilterLoss', 'bytes', 'bytesUnique', 'bytesLost', 'bytesDropped', 'byteAvailBuf', 'msBuf', 'mbitRate', 'msTsbPdDelay']}
+    for provider in ('haivision', 'robotweax'):
+        for style, extra in (('json', []), ('csv', []), ('default', []), ('json', ['-f'])):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
+                sink.bind(('127.0.0.1', 0)); listen_port, udp_port = port(), port(); group = Processes(root)
+                received_stats = root / 'receiver-stats.txt'; sent_stats = root / 'sender-stats.txt'
+                try:
+                    receiver = group.start('stats-sink', f'srt://127.0.0.1:{listen_port}?mode=listener&provider={provider}', f'udp://127.0.0.1:{sink.getsockname()[1]}', '-s:4', '-pf:' + style, '-statsout', str(received_stats), *extra)
+                    group.ready(receiver, 'Listening source')
+                    sender = group.start('stats-feed', f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}', '-s:4', '-r:8', '-pf:' + style, '-statsout', str(sent_stats), *extra)
+                    group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
+                    received, _ = feed_and_capture(udp_port, sink, b'stats')
+                finally: group.close()
+                sent_text, received_text = sent_stats.read_text(), received_stats.read_text()
+                assert ('{"bandwidth":' if style == 'json' else '+++/+++SRT BANDWIDTH: ') in sender[1].read_text()
+                if style == 'json':
+                    sent_rows = [json.loads(line) for line in sent_text.splitlines() if line]
+                    received_rows = [json.loads(line) for line in received_text.splitlines() if line]
+                    assert len(sent_rows) == 6 and len(received_rows) == received // 4, (len(sent_rows), len(received_rows), received)
+                    for row in sent_rows + received_rows:
+                        assert list(row) == ['sid', 'timepoint', 'time', 'window', 'link', 'send', 'recv'], list(row)
+                        assert all(list(row[name]) == keys for name, keys in sections.items()), row
+                    totals = [row['send']['packets'] for row in sent_rows]
+                    # Native counters trail the application by the packets still queued for the wire.
+                    if extra: assert totals == sorted(totals) and totals[-1] >= 20, totals       # -f: running totals.
+                    else: assert sum(totals) >= 20 and max(totals[1:]) <= 8, totals              # Default: per-report intervals.
+                elif style == 'csv':
+                    header = 'Timepoint,Time,SocketID,Time,pktFlowWindow,pktCongestionWindow,pktFlightSize,msRTT,mbpsBandwidth,mbpsMaxBW,pktSent,pktSentUnique,pktSndLoss,pktSndDrop,pktRetrans,pktSndFilterExtra,byteSent,byteSentUnique,byteSndDrop,byteAvailSndBuf,msSndBuf,mbpsSendRate,usPktSndPeriod,pktRecv,pktRecvUnique,pktRcvLoss,pktRcvDrop,pktRcvRetrans,pktRcvBelated,pktRcvFilterExtra,pktRcvFilterSupply,pktRcvFilterLoss,byteRecv,byteRecvUnique,byteRcvLoss,byteRcvDrop,byteAvailRcvBuf,msRcvBuf,mbpsRecvRate,msRcvTsbPdDelay'
+                    lines = sent_text.splitlines()
+                    assert lines[0] == header and len(lines) == 7 and all(len(line.split(',')) == 40 for line in lines), lines[:2]
+                else:
+                    assert sent_text.count('======= SRT STATS: sid=') == 6 and 'PACKETS     SENT: ' in sent_text and 'BUFFERLEFT:  SND: ' in sent_text, sent_text[:400]
+                print('statistics', provider, style, *extra, flush=True)
     # With reconnect enabled a wrong passphrase is retried as in the original,
     # reported once with its reason, and never spins or falls back to plaintext.
     for provider in ('haivision', 'robotweax'):

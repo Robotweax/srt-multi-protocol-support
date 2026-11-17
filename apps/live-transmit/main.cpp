@@ -60,6 +60,24 @@ int main(int argc, char** argv) {
             if (!stats_file) throw std::runtime_error("Cannot open statistics output");
         }
         auto& stats = stats_file.is_open() ? static_cast<std::ostream&>(stats_file) : std::cerr;
+        if (options.logging_requested && !options.quiet) std::cerr << "Note: native logging options are accepted for compatibility but not applied by this port\n";
+        // -pf default/json/csv report each SRT endpoint in the original's
+        // formats; the relay formats report the relay's own byte counters.
+        const bool relay_format = options.stats_format == "relay" || options.stats_format == "relay-json";
+        const auto format = options.stats_format == "json" ? StatsFormat::json : options.stats_format == "csv" ? StatsFormat::csv : StatsFormat::columns;
+        StatsWriter writer(format, options.stats_pretty, !options.full_stats);
+        size_t endpoint_packets[2] = {0, 0};
+        // As upstream: each SRT endpoint reports every N of its own packets.
+        auto endpoint_report = [&](Medium& medium, size_t side) {
+            const auto counter = endpoint_packets[side]++;
+            const bool bandwidth = options.bandwidth_every && counter % options.bandwidth_every == options.bandwidth_every - 1;
+            const bool statistics = !relay_format && options.stats_every && counter % options.stats_every == options.stats_every - 1;
+            if (!bandwidth && !statistics) return;
+            NativeStats now;
+            if (!medium.native_stats(now)) return;
+            if (bandwidth) std::cerr << writer.bandwidth(now) << std::flush;
+            if (statistics) { stats << writer.stats(now, side) << std::flush; if (!stats) throw std::runtime_error("Statistics output failed"); }
+        };
         if (!options.quiet) std::cerr << "Media path: '" << without_query(options.source) << "' --> '" << without_query(options.target) << "'\n";
         // A file is cut to what one target message can carry; network input is
         // read with the full chunk and anything the target cannot carry is lost.
@@ -72,7 +90,7 @@ int main(int argc, char** argv) {
         std::time_t loss_report_at = std::time(nullptr);
         auto report = [&] {
             const auto seconds = std::chrono::duration<double>(Clock::now() - began).count();
-            if (options.stats_format == "json")
+            if (options.stats_format == "relay-json")
                 stats << "{\"read_bytes\":" << read_bytes << ",\"written_bytes\":" << written_bytes << ",\"lost_bytes\":" << lost_bytes << ",\"written_packets\":" << written_packets << ",\"application_mbps\":" << written_bytes*8.0/(seconds*1000000) << ",\"source\":" << source->statistics() << ",\"target\":" << target->statistics() << "}\n";
             else stats << "Relay packets=" << written_packets << " input_bytes=" << read_bytes << " output_bytes=" << written_bytes << " lost_bytes=" << lost_bytes << " application_mbps=" << written_bytes*8.0/(seconds*1000000) << '\n';
             stats.flush(); if (!stats) throw std::runtime_error("Statistics output failed");
@@ -83,7 +101,8 @@ int main(int argc, char** argv) {
             const auto result = target->connected() ? target->write(packet.bytes) : Write::blocked;
             if (result == Write::done) {
                 written_bytes += size; ++written_packets;
-                if ((options.stats_every && written_packets % options.stats_every == 0) || (options.bandwidth_every && written_packets % options.bandwidth_every == 0)) report();
+                endpoint_report(*target, 1);
+                if (relay_format && options.stats_every && written_packets % options.stats_every == 0) report();
                 return true;
             }
             if (result == Write::blocked && source->pausable() && !stop_requested()) return false; // Nothing is lost by pausing a file.
@@ -118,6 +137,7 @@ int main(int argc, char** argv) {
                     continue;
                 }
                 read_bytes += result.packet.bytes.size();
+                endpoint_report(*source, 0);
                 if (!deliver(result.packet)) held = std::move(result.packet);
             }
             if (!options.quiet && lost_bytes != reported_lost_bytes) {
@@ -137,7 +157,7 @@ int main(int argc, char** argv) {
             // lets a reconnecting endpoint advance; steady state wakes rarely.
             if (!burst) source->wait(connected ? 100ms : 10ms);
         }
-        if (options.stats_every || options.bandwidth_every || !options.stats_path.empty()) report();
+        if (relay_format && (options.stats_every || !options.stats_path.empty())) report();
         if (options.verbose && !options.quiet) std::cerr << "Relay stopped: input_bytes=" << read_bytes << " output_bytes=" << written_bytes << " lost_bytes=" << lost_bytes << '\n';
         return 0;
     } catch (const std::exception& error) {

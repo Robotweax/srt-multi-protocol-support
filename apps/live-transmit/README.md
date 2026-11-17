@@ -77,16 +77,29 @@ options, URI options and unsupported values fail explicitly.
 | UDP | IPv4/IPv6 unicast; IPv4 multicast; `adapter` as numeric IPv4, `ttl`, `tos`, `buffer_size`, `multicast` |
 | Relay | `-c` chunk (default 1456), `-buffering` packets read per pass (default 10), `-a` reconnect (default yes) |
 | Timeout | `-t` seconds, `-tm:0` whole-run / `-tm:1` disconnected timer |
-| Diagnostics | `-q`, `-v`, `-s`/`-r` packet-frequency reports; `-statsout`, `-pf:default/json` |
+| Diagnostics | `-q`, `-v`, `-s`/`-r` packet-frequency reports; `-statsout`, `-pf:default/json/csv` (also `json,pretty`), `-f` |
+| Accepted, not applied | `-ll`, `-lfa`, `-logfile`, `-loginternal` |
 
-Statistics include application bytes/packets and average application bitrate.
-JSON also includes non-clearing native packet, retransmission, drop and RTT
-snapshots for connected SRT endpoints. This is a documented subset of upstream's
-statistics formatting, not its entire console/CSV reporting interface.
+Statistics follow the original: each connected SRT endpoint reports every `-s`
+packets of its own, in the original's two-column (`default`), `json` or `csv`
+layout with the same fields, names and order, and `-r` prints the bandwidth
+line. Reports cover the interval since the previous report, or running totals
+with `-f`. The provider interface never clears native counters, so the interval
+values and rates are computed by the app from successive snapshots. `sid` is a
+per-connection number, because native socket IDs are not exposed. Statistics go
+to stderr unless `-statsout` names a file, since stdout may carry media.
+
+Two extra formats report the relay's own counters with provider names:
+`-pf:relay` and `-pf:relay-json` (bytes read, written and lost, packets, average
+bitrate, and a short native snapshot per SRT endpoint).
+
+The logging options are accepted so existing command lines keep working, but
+they are not applied: the provider interface has no native log control. A note
+on stderr says so.
 Verbose diagnostics identify the actual module release and build fingerprint.
 They do not print complete URIs, passphrases or stream IDs.
 
-Native log controls/callbacks, full-statistics/CSV output, source-time forwarding,
+Source-time forwarding,
 rendezvous, TCP/RTP/HTTP/RTMP, IPv6 multicast, groups, FEC/GCM and reliable SRT
 File mode are rejected. The facade's source clocks are provider-specific;
 the app does not forward a timestamp into a different clock domain.

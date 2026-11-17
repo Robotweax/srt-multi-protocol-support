@@ -48,7 +48,8 @@ Options parse_arguments(int argc, char** argv) {
         auto delimiter = argument.find_first_of(":=", start);
         auto key = argument.substr(start, delimiter == std::string::npos ? delimiter : delimiter - start);
         auto value = delimiter == std::string::npos ? std::string{} : argument.substr(delimiter + 1);
-        const bool flag = key == "h" || key == "help" || key == "version" || key == "q" || key == "quiet" || key == "v" || key == "verbose";
+        const bool flag = key == "h" || key == "help" || key == "version" || key == "q" || key == "quiet" || key == "v" || key == "verbose" ||
+            key == "f" || key == "fullstats" || key == "loginternal";
         if (!flag && delimiter == std::string::npos) {
             if (++i == argc) throw std::invalid_argument("Missing value for option: " + key);
             value = argv[i];
@@ -67,9 +68,19 @@ Options parse_arguments(int argc, char** argv) {
         else if (key == "r" || key == "bwreport" || key == "report" || key == "bandwidth-report" || key == "bitrate-report") out.bandwidth_every = static_cast<size_t>(number(value, 0, INT_MAX, key));
         else if (key == "statsout") out.stats_path = value;
         else if (key == "pf" || key == "statspf") {
-            if (value != "default" && value != "json") throw std::invalid_argument("Supported statistics formats: default, json");
-            out.stats_format = value;
+            // As upstream: a format name, optionally followed by ",pretty".
+            const auto comma = value.find(',');
+            const auto extras = comma == std::string::npos ? std::string{} : value.substr(comma + 1);
+            out.stats_format = value.substr(0, comma);
+            if (out.stats_format != "default" && out.stats_format != "json" && out.stats_format != "csv" && out.stats_format != "relay" && out.stats_format != "relay-json")
+                throw std::invalid_argument("Unsupported print format: " + out.stats_format);
+            if (!extras.empty() && extras != "pretty") throw std::invalid_argument("Unsupported print format option: " + extras);
+            out.stats_pretty = extras == "pretty";
         }
+        else if (key == "f" || key == "fullstats") out.full_stats = true;
+        // Accepted so existing command lines keep working. The provider
+        // interface has no native log control, so they cannot take effect.
+        else if (key == "ll" || key == "loglevel" || key == "lfa" || key == "logfa" || key == "logfile" || key == "loginternal") out.logging_requested = true;
         else if (key == "st" || key == "srctime" || key == "sourcetime") {
             if (boolean(value)) throw std::invalid_argument("Source-time forwarding across provider clock domains is not supported");
         }
@@ -201,8 +212,12 @@ Usage: srt-live-transmit [options] <input-uri> <output-uri>
   -a:yes|no                       Reconnect SRT endpoints (default yes)
   -c:<bytes>                      Max size of data read in one step (default 1456)
   -buffering:<packets>             Packets read per pass (default 10)
-  -s:<packets>, -r:<packets>       Statistics / bandwidth reports to stderr
-  -statsout:<path> -pf:default|json Statistics destination and format
+  -s:<packets>, -r:<packets>       SRT statistics / bandwidth report frequency
+  -statsout:<path>                 Write statistics to a file (default stderr)
+  -pf:default|json|csv             Statistics format, as the original
+  -pf:relay|relay-json             Relay byte counters with provider names
+  -f, -fullstats                   Report totals instead of per-report intervals
+  -ll, -lfa, -logfile, -loginternal Accepted for compatibility; not applied
   -q, -v                          Quiet / verbose diagnostics, always stderr
   --provider haivision|robotweax   Default SRT provider (default haivision)
   --provider-dir <directory>       Module directory; no current-directory search
@@ -212,7 +227,7 @@ Usage: srt-live-transmit [options] <input-uri> <output-uri>
 
 Unknown or unsupported options fail explicitly. SRT is Live-only; file endpoints
 do not give Live a reliable File-transfer contract. Lost Live tail packets are
-allowed. Native logging callbacks, rendezvous, groups/FEC/GCM, and source-time
+allowed. Native log control, rendezvous, groups/FEC/GCM, and source-time
 forwarding are not supported by this port.
 )";
 }

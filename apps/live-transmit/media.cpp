@@ -197,6 +197,8 @@ class SrtMedium final : public Medium {
     Clock::time_point retry_at_{}, check_at_{};
     size_t payload_ = 0;
     std::string last_failure_;
+    std::vector<uint32_t> stat_ids_;
+    uint32_t session_ = 0; // Changes with every connection, like a native socket ID.
     const char* side() const { return input_ ? "source" : "target"; }
     srtmux::Interest interest() const {
         using srtmux::Interest;
@@ -300,6 +302,7 @@ public:
         if (info.state == srtmux::State::connected) {
             if (!ready_) {
                 ready_ = true; last_failure_.clear();
+                static uint32_t sessions = 0; session_ = ++sessions;
                 payload_ = info.max_message_bytes.value_or(0);
                 checked(poller_.update(*connection_registration_, interest()));
                 if (!endpoint_.listener && !options_.quiet) std::cerr << "SRT " << side() << " connected\n";
@@ -337,6 +340,26 @@ public:
         if (auto* count = std::get_if<size_t>(&result))
             for (size_t i = 0; i < *count; ++i)
                 if (srtmux::contains(events[i].readiness, srtmux::Interest::error) || srtmux::contains(events[i].readiness, srtmux::Interest::state)) dirty_ = true;
+    }
+    bool native_stats(NativeStats& out) override {
+        if (!ready_) return false;
+        if (stat_ids_.empty()) { // Metric IDs are fixed for a provider; resolve them once.
+            std::vector<uint32_t> ids;
+            for (const auto* name : stat_names()) ids.push_back(checked(connection_->resolve_metric(name)).id);
+            stat_ids_ = std::move(ids);
+        }
+        std::array<srtmx_metric_v1, stat_count> values{};
+        for (auto& value : values) value.struct_size = sizeof(value);
+        auto result = connection_->native_snapshot(stat_ids_, values);
+        if (!std::holds_alternative<srtmx_snapshot_v1>(result)) return false;
+        out.id = session_;
+        for (size_t i = 0; i < stat_count; ++i) {
+            auto& value = out.values[i];
+            if (values[i].value_kind == 1) { value.kind = StatValue::Kind::unsigned_integer; value.u = values[i].value.u64; }
+            else if (values[i].value_kind == 2) { value.kind = StatValue::Kind::signed_integer; value.i = values[i].value.i64; }
+            else { value.kind = StatValue::Kind::real; value.f = values[i].value.f64; }
+        }
+        return true;
     }
     std::string statistics() override {
         if (!ready_) return "null";

@@ -1,6 +1,7 @@
 """Optional black-box interoperability with unmodified Haivision srt-live-transmit."""
 from contextlib import ExitStack
 from pathlib import Path
+import json
 import signal
 import socket
 import subprocess
@@ -37,8 +38,8 @@ with tempfile.TemporaryDirectory(prefix='srtmux-reference-app-') as temporary:
                     sink.bind(('127.0.0.1', 0)); sink.settimeout(.5)
                     srt_port, udp_port = port(), port()
                     security = f'&passphrase={secret}&pbkeylen=16' if encrypted else ''
-                    new_prefix = [app, '--robotweax-module', rw, '--haivision-module', hv, '-v', '-a:no', '-t:20']
-                    old_prefix = [reference, '-a:no', '-t:20']
+                    new_prefix = [app, '--robotweax-module', rw, '--haivision-module', hv, '-v', '-a:no', '-t:20', '-s:4', '-pf:json', '-statsout', str(root / 'port-stats.json')]
+                    old_prefix = [reference, '-a:no', '-t:20', '-s:4', '-pf:json', '-statsout:' + str(root / 'upstream-stats.json')]
                     receiver_args = (old_prefix if app_sends else new_prefix) + [f'srt://127.0.0.1:{srt_port}?mode=listener{security}' + ('' if app_sends else '&provider=' + provider), f'udp://127.0.0.1:{sink.getsockname()[1]}']
                     sender_args = (new_prefix if app_sends else old_prefix) + [f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{srt_port}?mode=caller{security}' + ('&provider=' + provider if app_sends else '')]
                     try:
@@ -67,4 +68,10 @@ with tempfile.TemporaryDirectory(prefix='srtmux-reference-app-') as temporary:
                             try: process.wait(timeout=5)
                             except subprocess.TimeoutExpired: process.kill(); process.wait(); failures.append('Reference cleanup timeout')
                         assert not failures and all(process.returncode == 0 for process in processes), failures
+                    # Same objects, same keys, same order as the unmodified original.
+                    def structure(path):
+                        rows = [json.loads(line, object_pairs_hook=list) for line in path.read_text().splitlines() if line.strip()]
+                        assert rows, path
+                        return [(key, [inner for inner, _ in value] if isinstance(value, list) else None) for key, value in rows[0]]
+                    assert structure(root / 'port-stats.json') == structure(root / 'upstream-stats.json'), (structure(root / 'port-stats.json'), structure(root / 'upstream-stats.json'))
 print('Unmodified Haivision application interoperability passes for both providers and directions')

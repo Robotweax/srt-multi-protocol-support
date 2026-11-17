@@ -86,3 +86,20 @@ wording. The unmodified Haivision 1.5.7 application still exchanges all 24
 messages with both providers, in both directions, plaintext and AES-128.
 The accepted Live tail rule and its checks are unchanged.
 
+## Statistics and logging options — 17 November 2026
+
+`-s`, `-r`, `-pf:default|json|csv` (and `json,pretty`), `-f` and `-statsout` now
+behave as in the original for SRT endpoints. The interoperability check runs the
+unmodified Haivision 1.5.7 application and this port with `-s:4 -pf:json` in all
+eight cases and requires the same JSON objects, keys and key order from both.
+Provider tests check the CSV heading, the two-column layout, the bandwidth line,
+per-report intervals and `-f` running totals for both providers.
+
+Native counters are never cleared through the provider interface, so interval
+values and rates are computed by the app from successive snapshots, and `sid` is
+a per-connection number rather than a native socket ID. The relay's own counters
+remain available as `-pf:relay` and `-pf:relay-json`.
+
+`-ll`, `-lfa`, `-logfile` and `-loginternal` are accepted and reported as not
+applied, so existing command lines run unchanged. They cannot take effect until
+the provider interface offers native log control.

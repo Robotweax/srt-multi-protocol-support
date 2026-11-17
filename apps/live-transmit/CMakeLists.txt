@@ -1,5 +1,5 @@
 find_package(Threads REQUIRED)
-add_executable(srtmux_live_transmit main.cpp options.cpp media.cpp haivision/uriparser.cpp)
+add_executable(srtmux_live_transmit main.cpp options.cpp media.cpp stats.cpp haivision/uriparser.cpp)
 set_target_properties(srtmux_live_transmit PROPERTIES OUTPUT_NAME srt-live-transmit)
 target_link_libraries(srtmux_live_transmit PRIVATE SrtMux::host Threads::Threads)
 srtmux_warnings(srtmux_live_transmit)

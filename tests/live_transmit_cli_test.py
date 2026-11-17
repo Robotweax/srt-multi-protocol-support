@@ -29,7 +29,7 @@ assert run('-h').returncode == 0
 assert b'multi-SRT' in run('-version').stdout
 secret = 'public-cli-test-secret'
 bad = [
-    ['-c:-1'], ['-buffering:0'], ['-t:abc'], ['--provider', 'unknown'], ['-st:yes'], ['--unknown', 'value'],
+    ['-c:-1'], ['-buffering:0'], ['-pf:xml', 'file://con', 'file://con'], ['-pf:json,compact', 'file://con', 'file://con'], ['-t:abc'], ['--provider', 'unknown'], ['-st:yes'], ['--unknown', 'value'],
     ['file://con', f'srt://127.0.0.1:9000?passphrase={secret}&fec=1'],
     ['file://con', 'srt://127.0.0.1:9000?mode=rendezvous'],
     ['file://con', 'srt://127.0.0.1:9000?transtype=file'],
@@ -62,9 +62,17 @@ with tempfile.TemporaryDirectory(prefix='srtmux-transmit-cli-') as temporary:
     assert result.returncode != 0 and source.read_bytes() == payload
     result = run('-statsout', str(source), str(source), str(target))
     assert result.returncode != 0 and source.read_bytes() == payload
-    result = run('-pf:json', '-s:1', 'file://con', 'file://con', input=payload)
+    result = run('-pf:relay-json', '-s:1', 'file://con', 'file://con', input=payload)
     assert result.returncode == 0 and result.stdout == payload, result.stderr[-1000:]
     assert b'"written_bytes"' in result.stderr
+    # Upstream formats, -f and the logging options are accepted; without an SRT
+    # endpoint the original's formats report nothing.
+    for arguments in (['-pf:json,pretty', '-s:1'], ['-pf:csv', '-s:1', '-f'], ['-s:1', '-fullstats'], ['-ll:debug', '-lfa', 'all', '-logfile', str(root / 'unused.log'), '-loginternal']):
+        result = run(*arguments, 'file://con', 'file://con', input=payload)
+        assert result.returncode == 0 and result.stdout == payload, (arguments, result.stderr[-500:])
+        assert b'SRT STATS' not in result.stderr and b'"sid"' not in result.stderr
+        assert (b'not applied by this port' in result.stderr) == ('-ll:debug' in arguments), arguments
+    assert not (root / 'unused.log').exists()
 
     with (root / 'idle.log').open('wb') as log:
         process = subprocess.Popen([app, '-t:1', 'file://con', str(target)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
