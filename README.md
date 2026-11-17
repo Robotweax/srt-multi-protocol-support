@@ -71,6 +71,19 @@ samples are not pooled with the latest results.
 
 ## Build and check
 
+The [multi-provider `srt-live-transmit` application](apps/live-transmit/README.md)
+ports Haivision's supported CLI and UDP/SRT/file relay workflow to the C++ facade.
+On Linux/macOS it builds by default, with Haivision as the default SRT provider;
+choose Robotweax globally or independently on each SRT URI. Unsupported options
+fail explicitly. Example with real modules enabled:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSRTMUX_BUILD_PROVIDERS=ON
+cmake --build build --parallel
+build/apps/srt-live-transmit --provider robotweax \
+  'udp://:5000' 'srt://127.0.0.1:9000?mode=caller'
+```
+
 Requirements: CMake 3.20+, a C++20 compiler, and Python 3 for the export test.
 
 ```sh
@@ -87,7 +100,8 @@ cmake --build build-asan --parallel
 ctest --test-dir build-asan --output-on-failure
 ```
 
-`BUILD_TESTING=OFF` builds just the host library without test fixtures or Python.
+`BUILD_TESTING=OFF` builds the host and enabled applications without test fixtures
+or Python. Set `SRTMUX_BUILD_APPLICATIONS=OFF` for a library-only build.
 The default host-only build downloads no vendor sources. Enable
 `SRTMUX_BUILD_PROVIDERS=ON` for checksum-pinned real builds requiring OpenSSL 3.
 

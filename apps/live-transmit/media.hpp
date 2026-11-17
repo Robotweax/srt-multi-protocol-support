@@ -1,0 +1,43 @@
+#pragma once
+#include "options.hpp"
+#include <chrono>
+
+namespace live_transmit {
+using Clock = std::chrono::steady_clock;
+struct Packet { std::vector<std::byte> bytes; };
+struct ReadResult {
+    // dropped: an input unit larger than the chunk was discarded, as lost data.
+    enum class State { packet, would_block, eof, dropped } state;
+    Packet packet;
+    size_t dropped_bytes = 0;
+};
+// done: accepted whole. blocked: the medium cannot take it now. rejected: this
+// packet can never be sent on this medium (for example above the SRT payload).
+enum class Write { done, blocked, rejected };
+bool stop_requested() noexcept; // SIGINT/SIGTERM seen; defined by the relay.
+class Providers {
+public:
+    explicit Providers(const Options& options) : options_(options), runtime_(checked(srtmux::TransportRuntime::create())) {}
+    srtmux::Provider get(const std::string& name);
+private:
+    const Options& options_;
+    srtmux::TransportRuntime runtime_;
+    std::map<std::string, srtmux::Provider> loaded_;
+};
+class Medium {
+public:
+    virtual ~Medium() = default;
+    virtual void tick() {}
+    virtual bool connected() const { return true; }
+    virtual bool ended() const { return false; }
+    // A source that loses nothing when it is simply not read for a while.
+    virtual bool pausable() const { return false; }
+    // Largest unit one write accepts; 0 means no medium limit.
+    virtual size_t message_limit() const { return 0; }
+    virtual ReadResult read(size_t) { throw std::logic_error("Not an input medium"); }
+    virtual Write write(std::span<const std::byte>) { throw std::logic_error("Not an output medium"); }
+    virtual void wait(std::chrono::milliseconds) = 0;
+    virtual std::string statistics() { return "null"; }
+};
+std::unique_ptr<Medium> open_medium(EndpointOptions, bool input, const Options&, Providers&);
+}

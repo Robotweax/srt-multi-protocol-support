@@ -42,3 +42,20 @@ jobs:
       - run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSRTMUX_BUILD_PROVIDERS=ON -DSRTMUX_BUILD_BENCHMARKS=ON
       - run: cmake --build build --parallel 4
       - run: ctest --test-dir build --output-on-failure
+      - name: Build unmodified pinned Haivision reference application
+        run: |
+          cmake -S build/_deps/haivision-src -B build-reference -DCMAKE_BUILD_TYPE=Release -DENABLE_APPS=ON -DENABLE_TESTING=OFF -DENABLE_SHARED=OFF -DENABLE_STATIC=ON -DUSE_ENCLIB=openssl
+          cmake --build build-reference --target srt-live-transmit --parallel 4
+      - name: Check upstream application interoperability
+        run: python3 tests/live_transmit_reference_test.py build/apps/srt-live-transmit build-reference/srt-live-transmit build/providers/libsrtmux_robotweax.so build/providers/libsrtmux_haivision.so
+      - name: Install and check application bundle
+        run: |
+          cmake --install build --prefix "$PWD/build/package" --component SrtMux
+          python3 tests/live_transmit_bundle_test.py build/package
+          python3 tools/write_bundle_manifest.py build/package
+          tar -czf build/srt-live-transmit-${{ runner.os }}-${{ runner.arch }}.tar.gz -C build/package .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: srt-live-transmit-${{ runner.os }}-${{ runner.arch }}
+          path: build/srt-live-transmit-*.tar.gz
+          if-no-files-found: error
