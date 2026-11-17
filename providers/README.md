@@ -129,10 +129,16 @@ socket. A small bridge, compiled with the pinned vendor target’s own headers a
 definitions, sets its native readiness and signals the vendor event. It creates
 no UDP transport or helper thread. The bridge is private and is included in build
 fingerprints as `native-wake`; no vendor C++ layout crosses the module boundary.
-Robotweax uses `srt_epoll_wait` with a private OS wake socket (Unix datagram socket
-pair on POSIX, loopback UDP on Windows). There is no coordinator thread,
-wrapper timer slicing or scan of all registered sockets on each wait. Native
-vendor scheduling still determines wake latency. Wait translates at most 256
+Robotweax also uses native `srt_epoll_uwait`. Its wake identity is an ordinary
+unbound SRT socket registered for the error event: closing that socket makes the
+vendor poll report it at once, and the adapter re-arms with a fresh socket when
+the waiter drains the wake. Only public vendor API is used; there is no OS wake
+descriptor and therefore no system-socket polling tick. Both providers share one
+wait and translation path. There is no coordinator thread, wrapper timer slicing
+or scan of all registered sockets on each wait. Each ready event costs one lookup,
+and a wait does work proportional to the events it reports rather than to the
+caller's output capacity: output records are checked as they are used.
+Wait translates at most 256
 ready events per batch using fixed scratch storage. Finite waits accept 0 through
 INT_MAX milliseconds; `SRTM_WAIT_FOREVER`/`InfiniteWait` is unbounded. Wake is sticky,
 coalesces and wins over readiness. Closed registrations remain ERROR/STATE-ready
@@ -152,8 +158,15 @@ reports the first invalid configuration field.
 The registry grows in stable pages during connection creation and reuses released
 slots with new generations. It supports 65,536 concurrent handles per provider;
 capacity exhaustion reports Resource without changing existing connections.
-Generation exhaustion also fails rather than reusing a stale identity. Pages are
-retained until runtime destruction. No registry allocation occurs in I/O.
+Generations are per slot: reusing one slot advances only that slot's 32-bit
+range, so object churn does not bound process uptime. A slot whose range is used
+up is retired rather than aliased, and a later runtime of the same module starts
+above every generation issued before it. Pages are retained until runtime
+destruction. No registry allocation occurs in I/O.
+
+Each object keeps the short list of pollers subscribed to it. Close and release
+notify exactly those pollers; they do not scan the registry or hold the runtime
+control lock while doing so.
 
 Unsupported operations fail with Unsupported rather than succeeding silently:
 admission/log callbacks, graceful drain-close, groups,

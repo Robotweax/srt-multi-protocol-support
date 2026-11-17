@@ -22,8 +22,6 @@
 #include <utility>
 #ifndef _WIN32
 #include <arpa/inet.h>
-#include <unistd.h>
-#include <fcntl.h>
 #endif
 
 #ifdef PROVIDER_HAIVISION
@@ -56,66 +54,41 @@ struct WakeChannel {
     ~WakeChannel() { reset(); }
 };
 #else
+// Public vendor API only: a registered SRT socket reports ERR as soon as it is
+// closed, which wakes srt_epoll_uwait natively. Re-arming replaces the socket.
+// No OS descriptor, system-socket polling tick or vendor internals are used.
 struct WakeChannel {
-    SYSSOCKET input = SYSSOCKET_INVALID, output = SYSSOCKET_INVALID;
-    bool signalled = false; // Owner poller mutex protects signal/drain.
-    static void dispose(SYSSOCKET s) {
-        if (s == SYSSOCKET_INVALID) return;
-#ifdef _WIN32
-        closesocket(s);
-#else
-        ::close(s);
-#endif
+    int eid = -1;
+    SRTSOCKET socket = SRT_INVALID_SOCK;
+    bool signalled = false; // Protected by the owner poller mutex.
+    bool arm() {
+        socket = srt_create_socket();
+        const int events = SRT_EPOLL_ERR;
+        if (socket != SRT_INVALID_SOCK && srt_epoll_add_usock(eid, socket, &events) == 0) return true;
+        if (socket != SRT_INVALID_SOCK) srt_close(std::exchange(socket, SRT_INVALID_SOCK));
+        return false;
     }
-    void reset() { dispose(std::exchange(input, SYSSOCKET_INVALID)); dispose(std::exchange(output, SYSSOCKET_INVALID)); }
-    ~WakeChannel() { reset(); }
-    bool open() {
-#ifndef _WIN32
-        int sockets[2];
-        if (::socketpair(AF_UNIX, SOCK_DGRAM, 0, sockets) != 0) return false;
-        input = sockets[0]; output = sockets[1];
-        return fcntl(input, F_SETFL, O_NONBLOCK) == 0 && fcntl(output, F_SETFL, O_NONBLOCK) == 0 &&
-            fcntl(input, F_SETFD, FD_CLOEXEC) == 0 && fcntl(output, F_SETFD, FD_CLOEXEC) == 0;
-#else
-        input = ::socket(AF_INET, SOCK_DGRAM, 0); output = ::socket(AF_INET, SOCK_DGRAM, 0);
-        if (input == SYSSOCKET_INVALID || output == SYSSOCKET_INVALID) return false;
-        sockaddr_in addr{}; addr.sin_family = AF_INET; addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        if (::bind(input, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) return false;
-        int length = sizeof(addr); u_long nonblock = 1;
-        if (ioctlsocket(input, FIONBIO, &nonblock) || ioctlsocket(output, FIONBIO, &nonblock)) return false;
-        return getsockname(input, reinterpret_cast<sockaddr*>(&addr), &length) == 0 &&
-            ::connect(output, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
-#endif
-    }
+    bool open(int poll) { eid = poll; return arm(); }
     bool signal() {
-        if (signalled) return true;
-        const char byte = 1;
-        while (::send(output, &byte, 1, 0) != 1) {
-#ifdef _WIN32
-            if (WSAGetLastError() == WSAEINTR) continue;
-#else
-            if (errno == EINTR) continue;
-#endif
-            return false;
+        if (!signalled) {
+            if (socket == SRT_INVALID_SOCK || srt_close(socket) != 0) return false;
+            signalled = true;
         }
-        signalled = true; return true;
+        return true;
     }
-    void drain(bool readable = false) {
-        // Only our mutex-protected signal() writes this channel. A native
-        // readiness notification also drains delayed UDP delivery on Windows.
-        if (!signalled && !readable) return;
-        char bytes[64];
-        while (true) {
-            if (::recv(input, bytes, sizeof(bytes), 0) > 0) continue;
-#ifdef _WIN32
-            if (WSAGetLastError() == WSAEINTR) continue;
-#else
-            if (errno == EINTR) continue;
-#endif
-            break;
-        }
+    void drain(bool = false) {
+        if (!signalled) return;
+        srt_epoll_remove_usock(eid, std::exchange(socket, SRT_INVALID_SOCK));
         signalled = false;
+        if (!arm()) throw std::runtime_error("Native wake re-arm failed");
     }
+    void reset() {
+        if (socket == SRT_INVALID_SOCK) return;
+        srt_epoll_remove_usock(eid, socket);
+        if (!signalled) srt_close(socket);
+        socket = SRT_INVALID_SOCK; signalled = false;
+    }
+    ~WakeChannel() { reset(); }
 };
 #endif
 struct Subscription { srtm_handle object; uint64_t token; uint32_t interests; SRTSOCKET socket; };
@@ -126,13 +99,11 @@ struct PollState {
     bool interrupted = false, closing = false;
     int eid = -1;
     std::unordered_map<srtm_handle, Subscription> subscriptions;
-    std::unordered_map<SRTSOCKET, srtm_handle> sockets;
+    std::unordered_map<SRTSOCKET, Subscription*> sockets; // Node addresses are stable.
     std::vector<srtm_event_v1> terminal;
     size_t terminal_cursor = 0;
     bool terminal_first = true;
     std::array<SRT_EPOLL_EVENT, 256> native_events{};
-    std::vector<SRTSOCKET> reads = std::vector<SRTSOCKET>(256);
-    std::vector<SRTSOCKET> writes = std::vector<SRTSOCKET>(256);
     ~PollState() { wake.reset(); if (eid >= 0) srt_epoll_release(eid); }
 };
 struct alignas(64) CallGate { std::atomic<uint32_t> count{shut_gate}; };
@@ -146,11 +117,16 @@ struct Entry {
     std::atomic<uint32_t> payload{0};
     bool listener = false, accounting = false;
     std::atomic<bool> ready{false}, closed{false};
+    uint32_t next_generation = 0; // Per slot; protected by the runtime control mutex.
+    std::mutex watch;             // Never held together with a poller mutex by registration.
+    std::vector<srtm_handle> watchers; // Pollers holding a subscription to this object.
     alignas(64) std::atomic<uint64_t> tx{0};
     alignas(64) std::atomic<uint64_t> rx{0};
 };
 using Page = std::array<Entry, page_size>;
-std::atomic<uint32_t> generation_source{1};
+// Highest generation issued by any runtime of this module. A later runtime
+// starts above it, so handles of a destroyed runtime never alias new objects.
+std::atomic<uint32_t> generation_floor{0};
 }
 struct ProfileState {
     srtmx_profile_v1 config{};
@@ -165,6 +141,8 @@ struct srtm_runtime {
     std::mutex control;
     std::vector<uint32_t> free_slots;
     uint32_t next_slot = 0, objects = 0;
+    uint32_t base_generation = 0;
+    uint64_t next_profile = 1;
     std::atomic<bool> stopping{false};
     std::mutex shutdown;
     std::unordered_map<srtm_handle, std::shared_ptr<const ProfileState>> profiles;
@@ -267,22 +245,29 @@ srtm_status publish(srtm_runtime* r, SocketOwner& socket, uint32_t mode,
                     srtm_handle* out, srtm_error_v1* detail, std::unique_ptr<PollState> poller = {}) {
     std::lock_guard lock(r->control);
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime is stopping", detail);
-    if (r->free_slots.empty() && r->next_slot == page_size * page_count)
-        return error(SRTM_ERR_RESOURCE, "Concurrent handle capacity exhausted", detail);
-    // Generation exhaustion permanently fails rather than allowing stale aliasing.
-    auto generation = generation_source.load();
-    do {
-        if (generation == UINT32_MAX) return error(SRTM_ERR_RESOURCE, "Handle generation exhausted", detail);
-    } while (!generation_source.compare_exchange_weak(generation, generation + 1));
-    const uint32_t index = r->free_slots.empty() ? r->next_slot : r->free_slots.back();
-    auto* page = r->pages[index / page_size].load();
-    if (!page) {
-        auto owned = std::make_unique<Page>();
-        page = owned.release();
-        r->pages[index / page_size].store(page, std::memory_order_release);
+    // Generations are per slot: reuse of one slot never consumes another slot's
+    // range. A slot whose range is exhausted is retired, never aliased.
+    if (r->base_generation >= UINT32_MAX - 1) return error(SRTM_ERR_RESOURCE, "Handle generation exhausted", detail);
+    uint32_t index = 0; Page* page = nullptr; Entry* slot = nullptr;
+    while (true) {
+        if (r->free_slots.empty() && r->next_slot == page_size * page_count)
+            return error(SRTM_ERR_RESOURCE, "Concurrent handle capacity exhausted", detail);
+        index = r->free_slots.empty() ? r->next_slot : r->free_slots.back();
+        page = r->pages[index / page_size].load();
+        if (!page) {
+            auto owned = std::make_unique<Page>();
+            page = owned.release();
+            r->pages[index / page_size].store(page, std::memory_order_release);
+        }
+        if (r->free_slots.empty()) ++r->next_slot; else r->free_slots.pop_back();
+        slot = &(*page)[index % page_size];
+        if (slot->next_generation <= r->base_generation) slot->next_generation = r->base_generation + 1;
+        if (slot->next_generation != UINT32_MAX) break;
     }
-    if (r->free_slots.empty()) ++r->next_slot; else r->free_slots.pop_back();
-    auto& e = (*page)[index % page_size];
+    auto& e = *slot;
+    const uint32_t generation = e.next_generation++;
+    if (generation > generation_floor.load(std::memory_order_relaxed)) generation_floor.store(generation, std::memory_order_relaxed);
+    { std::lock_guard watch(e.watch); e.watchers.clear(); }
     e.socket = socket.value; e.mode = mode; e.payload = payload; e.encryption = encryption; e.mss = mss;
     e.listener = listener; e.ready = ready; e.closed = false; e.accounting = accounting;
     e.tx.store(0); e.rx.store(0); e.poller = std::move(poller);
@@ -384,6 +369,7 @@ srtm_status runtime_create(const srtm_host_v1* host, srtm_runtime** out, srtm_er
     if (active.load()) return error(SRTM_ERR_BUSY, "One runtime per provider is supported", d);
     auto r = std::make_unique<srtm_runtime>();
     r->free_slots.reserve(page_size * page_count);
+    r->base_generation = generation_floor.load();
     if (srt_startup() != 0) return native_error(d);
     *out = r.release(); active.store(*out, std::memory_order_release); return SRTM_OK;
 }
@@ -555,7 +541,9 @@ srtm_status info(srtm_runtime* r, srtm_handle h, srtm_connection_info_v1* out, s
         error(SRTM_ERR_CONNECTION_LOST, "SRT connection failed", &value.terminal_error);
         const int reason = srt_getrejectreason(e->socket);
         if (reason > 0) {
-            value.terminal_error.category = SRTM_ERR_PEER_REJECTED;
+            // A wrong or missing secret is an authentication outcome, not a generic rejection.
+            value.terminal_error.category = reason == SRT_REJ_BADSECRET || reason == SRT_REJ_UNSECURE
+                ? SRTM_ERR_AUTHENTICATION : SRTM_ERR_PEER_REJECTED;
             value.terminal_error.detail_flags |= 4; value.terminal_error.rejection_code = reason;
         }
     }

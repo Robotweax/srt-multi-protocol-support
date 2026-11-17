@@ -19,8 +19,8 @@ Secrets are erased when the last setup use of the profile finishes. Setup may
 allocate; no profile lookup occurs during data transfer.
 
 Profile creation and release use a separate runtime-owned registry, protected on
-setup only. Handles use a disjoint type tag and monotonic generations shared with
-ordinary object generation. A released/foreign profile cannot alias a connection.
+setup only. Handles use a disjoint type tag and their own monotonic 48-bit
+sequence. A released/foreign profile cannot alias a connection.
 Connect/listen retain a profile snapshot for the call, then the native socket owns
 its configured values; the application can release the profile immediately.
 Existing connections and listeners continue to work, including encrypted accept.

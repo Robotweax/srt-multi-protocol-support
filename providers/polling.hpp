@@ -2,12 +2,26 @@
 // No polling coordinator thread. Vendor epoll waits on SRT plus one wake socket.
 constexpr uint32_t poll_batch = 256;
 
+#ifdef PROVIDER_HAIVISION
+// The pinned native add/update does not signal a blocked waiter by itself.
+constexpr bool registration_wake = true;
+#else
+constexpr bool registration_wake = false; // Native registration wakes the waiter.
+#endif
+void forget_watcher(srtm_runtime* r, srtm_handle object, srtm_handle poller) {
+    auto* e = raw_lookup(r, object); if (!e) return;
+    std::lock_guard watch(e->watch);
+    if (raw_lookup(r, object) == e) std::erase(e->watchers, poller);
+}
+// Visits only the pollers subscribed to this object. Callers have already
+// stopped new calls on the object, so its watcher list is stable here.
 void notify_closed(srtm_runtime* r, srtm_handle h, bool remove) {
-    std::lock_guard registry_lock(r->control);
-    for (uint32_t i = 0; i < r->next_slot; ++i) {
-        auto& slot = (*r->pages[i / page_size].load())[i % page_size];
-        if (!slot.generation.load() || !slot.poller) continue;
-        auto& p = *slot.poller; std::lock_guard lock(p.mutex);
+    auto* e = raw_lookup(r, h); if (!e) return;
+    std::lock_guard watch(e->watch);
+    for (const auto ph : e->watchers) {
+        auto owner = lookup(r, ph);
+        if (!owner || !owner->poller) continue; // Poller is being released.
+        auto& p = *owner->poller; std::lock_guard lock(p.mutex);
         auto found = p.subscriptions.find(h); if (found == p.subscriptions.end()) continue;
         auto& sub = found->second;
         if (sub.socket != SRT_INVALID_SOCK) {
@@ -22,6 +36,7 @@ void notify_closed(srtm_runtime* r, srtm_handle h, bool remove) {
         }
         p.wake.signal();
     }
+    if (remove) e->watchers.clear();
 }
 srtm_status poller_create(srtm_runtime* r, srtm_handle* out, srtm_error_v1* d) {
     clear(d);
@@ -29,13 +44,7 @@ srtm_status poller_create(srtm_runtime* r, srtm_handle* out, srtm_error_v1* d) {
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime stopping", d);
     auto p = std::make_unique<PollState>();
     p->eid = srt_epoll_create(); if (p->eid < 0) return native_error(d);
-#ifdef PROVIDER_HAIVISION
     if (!p->wake.open(p->eid)) return error(SRTM_ERR_RESOURCE, "Cannot create native poller wake", d);
-#else
-    if (!p->wake.open()) return error(SRTM_ERR_RESOURCE, "Cannot create poller wake sockets", d);
-    int events = SRT_EPOLL_IN;
-    if (srt_epoll_add_ssock(p->eid, p->wake.input, &events) != 0) return native_error(d);
-#endif
     SocketOwner none{SRT_INVALID_SOCK};
     return publish(r, none, 0, 0, 0, 0, false, false, false, out, d, std::move(p));
 }
@@ -44,6 +53,19 @@ srtm_status poller_register(srtm_runtime* r, srtm_handle ph, srtm_handle h, uint
     if (!owner || !owner->poller || !object || object->poller)
         return error(SRTM_ERR_INVALID_HANDLE, "Invalid poller or object", d);
     if (!interests || (interests & ~15u)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid interests", d);
+    // Record the back-reference first and separately: the object's watch mutex
+    // and the poller mutex are never held together on this path.
+    bool watching = false;
+    {
+        std::lock_guard watch(object->watch);
+        if (std::find(object->watchers.begin(), object->watchers.end(), ph) == object->watchers.end()) {
+            object->watchers.push_back(ph); watching = true;
+        }
+    }
+    struct Undo {
+        Entry& object; srtm_handle poller; bool armed;
+        ~Undo() { if (armed) { std::lock_guard watch(object.watch); std::erase(object.watchers, poller); } }
+    } undo{*object.entry, ph, watching};
     auto& p = *owner->poller; std::lock_guard lock(p.mutex);
     if (p.closing || r->stopping) return error(SRTM_ERR_INVALID_STATE, "Poller stopping", d);
     p.terminal.reserve(p.subscriptions.size()+1); // Close notification cannot allocate.
@@ -54,7 +76,7 @@ srtm_status poller_register(srtm_runtime* r, srtm_handle ph, srtm_handle h, uint
     if (found == p.subscriptions.end()) {
         auto [sub, inserted] = p.subscriptions.emplace(h, Subscription{h, token, interests, object->socket});
         (void)inserted;
-        try { p.sockets.emplace(object->socket, h); }
+        try { p.sockets.emplace(object->socket, &sub->second); }
         catch (...) { p.subscriptions.erase(sub); throw; }
         if (srt_epoll_add_usock(p.eid, object->socket, &events) != 0) {
             p.sockets.erase(object->socket); p.subscriptions.erase(sub); return native_error(d);
@@ -63,21 +85,28 @@ srtm_status poller_register(srtm_runtime* r, srtm_handle ph, srtm_handle h, uint
         if (srt_epoll_update_usock(p.eid, object->socket, &events) != 0) return native_error(d);
         found->second.interests = interests; found->second.token = token;
     }
-    p.wake.signal(); return SRTM_OK;
+    undo.armed = false;
+    if (registration_wake) p.wake.signal();
+    return SRTM_OK;
 }
 srtm_status poller_remove(srtm_runtime* r, srtm_handle ph, srtm_handle h, srtm_error_v1* d) {
     clear(d); auto owner = lookup(r, ph);
     if (!owner || !owner->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid poller", d);
-    auto& p = *owner->poller; std::lock_guard lock(p.mutex);
-    auto found = p.subscriptions.find(h);
-    if (found != p.subscriptions.end()) {
-        if (found->second.socket != SRT_INVALID_SOCK) {
-            srt_epoll_remove_usock(p.eid, found->second.socket); p.sockets.erase(found->second.socket);
+    bool removed = false;
+    {
+        auto& p = *owner->poller; std::lock_guard lock(p.mutex);
+        auto found = p.subscriptions.find(h);
+        if (found != p.subscriptions.end()) {
+            if (found->second.socket != SRT_INVALID_SOCK) {
+                srt_epoll_remove_usock(p.eid, found->second.socket); p.sockets.erase(found->second.socket);
+            }
+            p.subscriptions.erase(found);
+            std::erase_if(p.terminal, [h](const auto& event) { return event.object == h; });
+            if (registration_wake) p.wake.signal();
+            removed = true;
         }
-        p.subscriptions.erase(found);
-        std::erase_if(p.terminal, [h](const auto& event) { return event.object == h; });
-        p.wake.signal();
     }
+    if (removed) forget_watcher(r, h, ph);
     return SRTM_OK;
 }
 srtm_status poller_wake(srtm_runtime* r, srtm_handle ph, srtm_error_v1* d) {
@@ -97,23 +126,17 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
         (timeout != SRTM_WAIT_FOREVER && timeout > INT_MAX))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid wait arguments", d, io);
     capacity = std::min(capacity, poll_batch);
-    for (uint32_t i = 0; i < capacity; ++i) {
-        auto* out = reinterpret_cast<srtm_event_v1*>(reinterpret_cast<char*>(events)+size_t(i)*stride);
-        if (!sized(out) || out->struct_size > stride) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid event record", d, io);
-    }
+    auto record = [&](uint32_t index) { return reinterpret_cast<srtm_event_v1*>(reinterpret_cast<char*>(events)+size_t(index)*stride); };
+    // Records are checked as they are used, so a wait costs work proportional
+    // to the events it reports, not to the caller's capacity. Readiness is
+    // level-triggered: rejecting a malformed later record loses nothing.
+    auto usable = [&](uint32_t index) { auto* out = record(index); return sized(out) && out->struct_size <= stride; };
+    if (!usable(0)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid event record", d, io);
     auto& p = *owner->poller;
     if (p.waiter.test_and_set(std::memory_order_acquire)) return error(SRTM_ERR_BUSY, "Only one waiter per poller", d, io);
     struct WaitGuard { PollState& p; ~WaitGuard() { p.waiter.clear(std::memory_order_release); } } guard{p};
     using Clock = std::chrono::steady_clock;
     const auto deadline = timeout == SRTM_WAIT_FOREVER ? Clock::time_point::max() : Clock::now()+std::chrono::milliseconds(timeout);
-    auto output = [&](uint32_t index, const srtm_event_v1& value) {
-        auto* out = reinterpret_cast<srtm_event_v1*>(reinterpret_cast<char*>(events)+size_t(index)*stride);
-        auto size = out->struct_size; *out = value; out->struct_size = size;
-    };
-    // A bounded, stack-resident merge table avoids per-event allocation and
-    // quadratic merging of read/write events. It is independent of registry size.
-    struct Merge { srtm_handle handle; uint32_t index; };
-    const size_t merge_size = std::bit_ceil(capacity*2u);
     while (true) {
         bool terminal_ready = false;
         {
@@ -124,52 +147,31 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
             terminal_ready = !p.terminal.empty();
             p.wake.drain();
         }
-#ifndef PROVIDER_HAIVISION
-        int rn = static_cast<int>(capacity), wn = static_cast<int>(capacity), sn = 1;
-        SYSSOCKET native_ready = SYSSOCKET_INVALID;
-#endif
         int64_t wait_ms = -1;
         if (terminal_ready) wait_ms = 0;
         else if (timeout != SRTM_WAIT_FOREVER) {
             auto remaining = deadline-Clock::now();
             wait_ms = remaining <= Clock::duration::zero() ? 0 : std::chrono::ceil<std::chrono::milliseconds>(remaining).count();
         }
-#ifdef PROVIDER_HAIVISION
+        // One native event per ready socket on both vendors; the private wake
+        // identity may use one slot and is skipped below.
         int result = srt_epoll_uwait(p.eid, p.native_events.data(), static_cast<int>(capacity), wait_ms);
-#else
-        int result = srt_epoll_wait(p.eid, p.reads.data(), &rn, p.writes.data(), &wn,
-            wait_ms, &native_ready, &sn, nullptr, nullptr);
-#endif
         if (result < 0) {
             const int code = srt_getlasterror(nullptr);
             if (code != SRT_ETIMEOUT && code != SRT_EASYNCRCV) return native_error(d, io);
-#ifdef PROVIDER_HAIVISION
             result = 0;
-#else
-            rn = wn = sn = 0;
-#endif
         }
         std::lock_guard lock(p.mutex);
         if (p.interrupted || p.closing) { p.interrupted = false; p.wake.drain(); *count = 0; return SRTM_INTERRUPTED; }
-#ifdef PROVIDER_HAIVISION
-        p.wake.drain(); // Registration notifications are not user cancellation.
-#else
-        if (sn) p.wake.drain(true);
-#endif
-        uint32_t written = 0;
-        std::array<Merge, poll_batch*2> merge;
-        std::fill_n(merge.begin(), merge_size, Merge{0, 0});
+        p.wake.drain(); // Registration and close notifications are not user cancellation.
+        uint32_t written = 0; bool malformed = false;
+        // A closed object's socket has left the native set, so a registration is
+        // reported by exactly one of the two sources: no merging is required.
         auto append = [&](const Subscription& sub, uint32_t ready) {
-            if (!ready) return;
-            size_t key = static_cast<size_t>((sub.object ^ (sub.object >> 16))*UINT64_C(11400714819323198485)) & (merge_size-1);
-            while (merge[key].handle && merge[key].handle != sub.object) key = (key+1)&(merge_size-1);
-            if (merge[key].handle) {
-                auto* out = reinterpret_cast<srtm_event_v1*>(reinterpret_cast<char*>(events)+size_t(merge[key].index)*stride);
-                out->readiness |= ready;
-            } else if (written < capacity) {
-                merge[key] = {sub.object, written};
-                output(written++, {sizeof(srtm_event_v1), ready, sub.object, sub.token});
-            }
+            if (!ready || written == capacity) return;
+            if (!usable(written)) { malformed = true; return; }
+            auto* out = record(written++); const auto size = out->struct_size;
+            *out = {sizeof(srtm_event_v1), ready, sub.object, sub.token}; out->struct_size = size;
         };
         // Closed objects remain level-ready. Rotate their bounded prefix and
         // alternate priority with native events so neither class can monopolize
@@ -189,43 +191,21 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
         const bool terminal_first = p.terminal_first;
         if (!p.terminal.empty()) p.terminal_first = !p.terminal_first;
         if (terminal_first) append_terminal();
-#ifdef PROVIDER_HAIVISION
         for (int i = 0; i < result; ++i) {
             const auto& event = p.native_events[static_cast<size_t>(i)];
             auto found = p.sockets.find(event.fd); if (found == p.sockets.end()) continue; // Private wake identity.
-            auto sub = p.subscriptions.find(found->second); if (sub == p.subscriptions.end()) continue;
+            const auto& sub = *found->second;
             uint32_t ready = 0;
             if (event.events & SRT_EPOLL_IN) ready |= SRTM_READY_READ;
             if (event.events & SRT_EPOLL_OUT) ready |= SRTM_READY_WRITE;
-            ready &= sub->second.interests;
-            if (event.events & SRT_EPOLL_ERR) ready |= SRTM_READY_ERROR | (sub->second.interests & SRTM_READY_STATE);
-            else if ((sub->second.interests & SRTM_READY_STATE) && srt_getsockstate(event.fd) == SRTS_CONNECTED)
+            ready &= sub.interests;
+            if (event.events & SRT_EPOLL_ERR) ready |= SRTM_READY_ERROR | (sub.interests & SRTM_READY_STATE);
+            else if ((sub.interests & SRTM_READY_STATE) && srt_getsockstate(event.fd) == SRTS_CONNECTED)
                 ready |= SRTM_READY_STATE;
-            append(sub->second, ready);
+            append(sub, ready);
         }
-#else
-        auto translate = [&](SRTSOCKET socket, uint32_t direction) {
-            auto found = p.sockets.find(socket); if (found == p.sockets.end()) return;
-            auto sub = p.subscriptions.find(found->second); if (sub == p.subscriptions.end()) return;
-            uint32_t ready = direction & sub->second.interests;
-            // Both pinned vendors report ERR in BOTH native sets (we always
-            // supply nonempty arrays for both). With an empty opposite set,
-            // ordinary readiness needs no additional global socket-state lookup.
-            // STATE or mixed batches retain the full query, including overflow
-            // and concurrent registration changes. Readiness remains advisory.
-            const bool opposite_ready = direction == SRTM_READY_READ ? wn != 0 : rn != 0;
-            if ((sub->second.interests & SRTM_READY_STATE) || opposite_ready) {
-                const auto state = srt_getsockstate(socket);
-                if (state == SRTS_CONNECTED) ready |= sub->second.interests & SRTM_READY_STATE;
-                if (state == SRTS_BROKEN || state == SRTS_CLOSING || state == SRTS_CLOSED || state == SRTS_NONEXIST)
-                    ready |= SRTM_READY_ERROR | (sub->second.interests & SRTM_READY_STATE);
-            }
-            append(sub->second, ready);
-        };
-        for (int i = 0; i < rn; ++i) translate(p.reads[static_cast<size_t>(i)], SRTM_READY_READ);
-        for (int i = 0; i < wn; ++i) translate(p.writes[static_cast<size_t>(i)], SRTM_READY_WRITE);
-#endif
         if (!terminal_first) append_terminal();
+        if (malformed) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid event record", d, io);
         if (written) { *count = written; return SRTM_OK; }
         if (timeout != SRTM_WAIT_FOREVER && Clock::now() >= deadline) { *count = 0; return SRTM_TIMED_OUT; }
     }
@@ -242,6 +222,8 @@ srtm_status poller_release(srtm_runtime* r, srtm_handle ph, srtm_error_v1* d) {
     }
     for (auto& gate : e->calls) if (gate.count.load() & ~shut_gate) return error(SRTM_ERR_BUSY, "Poller has active calls", d);
     block_calls(*e); // Also closes the small race with a new call after the check.
+    // Exclusive now: drop this poller from every subscribed object's watcher list.
+    for (const auto& [object, sub] : e->poller->subscriptions) { (void)sub; forget_watcher(r, object, ph); }
     std::lock_guard registry_lock(r->control);
     e->generation.store(0, std::memory_order_release); e->poller.reset();
     r->free_slots.push_back(static_cast<uint32_t>(ph & 0xffffu)); --r->objects;
