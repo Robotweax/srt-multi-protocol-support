@@ -41,10 +41,16 @@ comparisons; inconclusive and failed cases still prevent sign-off.
 The [Linux Debug timeout investigation](docs/validation/2026-11-17-debug-verifier.md)
 identified excessive sanitizer cost in the benchmark's byte verification loop.
 Independent full-body `memcmp` verification preserves integrity checks while
-bringing all 16 Linux Debug ASan/UBSan and all 16 Release checks within their
-existing deadlines. The benchmark verifier change leaves provider module bytes
+bringing all 16 local Linux ARM64 Debug ASan/UBSan and all 16 Release checks within
+their existing deadlines. The benchmark verifier change leaves provider module bytes
 unchanged and adds 36 corruption canaries; sanitizer CI includes benchmark smoke
 coverage. The separate Release encrypted File capture timeouts remain unresolved.
+
+[Finite Live functional tests](docs/validation/2026-11-17-live-tail-contract.md)
+accept an explicitly reported missing tail after source completion, while
+rejecting internal gaps, reordering, duplicates and corruption. These separate,
+source-paced smoke tests do not produce qualification samples. File tests and
+the strict timed benchmark continue to require complete delivery.
 
 The [complete native feature audit and extension design](docs/design/extensions/README.md)
 records native feature gaps and the versioned design. The first stage provides

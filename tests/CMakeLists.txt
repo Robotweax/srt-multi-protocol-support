@@ -93,18 +93,23 @@ if(SRTMUX_BUILD_PROVIDERS AND SRTMUX_BUILD_BENCHMARKS)
     --profile-setup --mode file --encryption aes-128-ctr --mib 4 --runs 1
     --warmup-mib 1 --probe-calls 0 --output "${PROJECT_BINARY_DIR}/smoke-profile-setup.json")
   set_tests_properties(benchmark_profile_setup PROPERTIES TIMEOUT 180)
-  foreach(profile IN ITEMS file_aes128 live_plain live_aes128)
-    set(mode live)
-    set(encryption aes-128-ctr)
-    if(profile STREQUAL "file_aes128")
-      set(mode file)
-    elseif(profile STREQUAL "live_plain")
-      set(encryption none)
+  add_test(NAME benchmark_file_aes128 COMMAND ${Python3_EXECUTABLE}
+    "${PROJECT_SOURCE_DIR}/benchmarks/compare.py" --build "${PROJECT_BINARY_DIR}"
+    --mode file --encryption aes-128-ctr --mib 4 --runs 1
+    --warmup-mib 1 --probe-calls 0 --output "${PROJECT_BINARY_DIR}/smoke-file_aes128.json")
+  set_tests_properties(benchmark_file_aes128 PROPERTIES TIMEOUT 180)
+  foreach(profile IN ITEMS plain aes128 tail_direct tail_module tail_facade)
+    set(options)
+    if(profile STREQUAL "aes128")
+      list(APPEND options --encrypted)
+    elseif(profile MATCHES "^tail_(.*)$")
+      list(APPEND options --faults --api "${CMAKE_MATCH_1}")
     endif()
-    add_test(NAME benchmark_${profile} COMMAND ${Python3_EXECUTABLE}
-      "${PROJECT_SOURCE_DIR}/benchmarks/compare.py" --build "${PROJECT_BINARY_DIR}"
-      --mode ${mode} --encryption ${encryption} --mib 4 --runs 1
-      --warmup-mib 1 --probe-calls 0 --output "${PROJECT_BINARY_DIR}/smoke-${profile}.json")
-    set_tests_properties(benchmark_${profile} PROPERTIES TIMEOUT 180)
+    add_test(NAME live_${profile} COMMAND ${Python3_EXECUTABLE}
+      "${CMAKE_CURRENT_SOURCE_DIR}/live_delivery_test.py" ${options}
+      $<TARGET_FILE:srtmux_live_robotweax> $<TARGET_FILE:srtmux_live_haivision>
+      $<TARGET_FILE:srtmux_live_module> $<TARGET_FILE:srtmux_live_facade>
+      $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision>)
+    set_tests_properties(live_${profile} PROPERTIES TIMEOUT 180)
   endforeach()
 endif()
