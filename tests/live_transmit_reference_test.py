@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-reference-app-') as temporary:
                     sink.bind(('127.0.0.1', 0)); sink.settimeout(.5)
                     srt_port, udp_port = port(), port()
                     security = f'&passphrase={secret}&pbkeylen=16' if encrypted else ''
-                    new_prefix = [app, '--robotweax-module', rw, '--haivision-module', hv, '-a:no', '-t:20']
+                    new_prefix = [app, '--robotweax-module', rw, '--haivision-module', hv, '-v', '-a:no', '-t:20']
                     old_prefix = [reference, '-a:no', '-t:20']
                     receiver_args = (old_prefix if app_sends else new_prefix) + [f'srt://127.0.0.1:{srt_port}?mode=listener{security}' + ('' if app_sends else '&provider=' + provider), f'udp://127.0.0.1:{sink.getsockname()[1]}']
                     sender_args = (new_prefix if app_sends else old_prefix) + [f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{srt_port}?mode=caller{security}' + ('&provider=' + provider if app_sends else '')]
@@ -47,8 +47,8 @@ with tempfile.TemporaryDirectory(prefix='srtmux-reference-app-') as temporary:
                         if not app_sends: ready(receiver, receiver_log, 'Listening source')
                         else: time.sleep(.2)
                         sender = subprocess.Popen(sender_args, stdout=subprocess.DEVNULL, stderr=stack.enter_context(sender_log.open('wb'))); processes.append(sender)
-                        ready(sender, sender_log, 'Connected target' if app_sends else 'SRT target connected')
-                        ready(receiver, receiver_log, 'Accepted SRT source connection' if app_sends else 'Connected source')
+                        ready(sender, sender_log, 'SRT target connected')
+                        ready(receiver, receiver_log, 'Accepted SRT source connection')
                         expected = [index.to_bytes(4, 'big') + bytes([index]) * 508 for index in range(24)]
                         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as feed:
                             for packet in expected:

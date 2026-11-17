@@ -121,8 +121,9 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
         return out;
     }
     out.kind = EndpointOptions::Kind::srt;
-    if (options.chunk > 1456) throw std::invalid_argument("SRT Live chunk must be at most 1456 bytes");
-    auto config = srtmux::live_profile(); config.payload_bytes = static_cast<uint32_t>(options.chunk);
+    // As in the original, -c is the read size and payloadsize the SRT message
+    // limit (default 1316); they are independent settings.
+    auto config = srtmux::live_profile();
     out.profile = srtmux::ProfileConfig::basic(config);
     auto& c = out.profile.transport; auto& tuning = out.profile.tuning;
     std::string mode = out.host.empty() ? "listener" : "caller", adapter, bind;
@@ -141,9 +142,7 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
         else if (key == "conntimeo") c.connect_timeout = std::chrono::milliseconds(unsigned_value(1, INT_MAX));
         else if (key == "peeridletimeo") c.peer_idle_timeout = std::chrono::milliseconds(unsigned_value(1, INT_MAX));
         else if (key == "mss") c.mss_bytes = unsigned_value(76, 1500);
-        else if (key == "payloadsize") {
-            if (unsigned_value(1, 1456) != options.chunk) throw std::invalid_argument("payloadsize must match -c/--chunk");
-        }
+        else if (key == "payloadsize") c.payload_bytes = unsigned_value(1, 1456);
         else if (key == "sndbuf") c.send_buffer_bytes = static_cast<uint64_t>(number(value, 1, INT_MAX, key));
         else if (key == "rcvbuf") c.receive_buffer_bytes = static_cast<uint64_t>(number(value, 1, INT_MAX, key));
         else if (key == "streamid") c.stream_id.assign(reinterpret_cast<const std::byte*>(value.data()), reinterpret_cast<const std::byte*>(value.data()+value.size()));
@@ -168,6 +167,7 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
         else throw std::invalid_argument("Unsupported SRT URI option: " + key);
     }
     if (out.provider != "haivision" && out.provider != "robotweax") throw std::invalid_argument("Provider must be haivision or robotweax");
+    if (input && options.chunk < c.payload_bytes) throw std::invalid_argument("-c/--chunk must be at least the SRT input payloadsize (default 1316)");
     if (mode != "caller" && mode != "listener" && mode != "default") throw std::invalid_argument("Only caller/listener modes are supported");
     out.listener = mode == "listener" || (mode == "default" && out.host.empty());
     if (out.listener && !c.stream_id.empty()) throw std::invalid_argument("streamid advertises caller metadata; listener admission filtering is unsupported");
@@ -199,8 +199,8 @@ Usage: srt-live-transmit [options] <input-uri> <output-uri>
   -t:<seconds>, -timeout <seconds> Exit timer (0 disables)
   -tm:0|1                         Whole-run timer / disconnected timer
   -a:yes|no                       Reconnect SRT endpoints (default yes)
-  -c:<bytes>                      Chunk size (default 1316; SRT Live <=1456)
-  -buffering:<packets>             Bounded relay queue (default 10)
+  -c:<bytes>                      Max size of data read in one step (default 1456)
+  -buffering:<packets>             Packets read per pass (default 10)
   -s:<packets>, -r:<packets>       Statistics / bandwidth reports to stderr
   -statsout:<path> -pf:default|json Statistics destination and format
   -q, -v                          Quiet / verbose diagnostics, always stderr

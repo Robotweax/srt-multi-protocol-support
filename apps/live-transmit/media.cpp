@@ -85,11 +85,20 @@ public:
         if (n == 0) return {ReadResult::State::eof, {}};
         packet.bytes.resize(static_cast<size_t>(n)); return {ReadResult::State::packet, std::move(packet)};
     }
-    std::optional<size_t> write(std::span<const std::byte> bytes) override {
-        const auto n = ::write(fd_.value, bytes.data(), bytes.size());
-        if (n < 0) { if (would_block()) return {}; system_error("Write media file"); }
-        return static_cast<size_t>(n);
+    // Like the original's blocking console write: the whole packet, in order.
+    Write write(std::span<const std::byte> bytes) override {
+        while (!bytes.empty()) {
+            const auto n = ::write(fd_.value, bytes.data(), bytes.size());
+            if (n < 0) {
+                if (!would_block()) system_error("Write media file");
+                if (stop_requested()) return Write::blocked;
+                fd_.wait(false, std::chrono::milliseconds(100)); continue;
+            }
+            bytes = bytes.subspan(static_cast<size_t>(n));
+        }
+        return Write::done;
     }
+    bool pausable() const override { return input_; }
     void wait(std::chrono::milliseconds timeout) override { fd_.wait(input_, timeout); }
 };
 class UdpMedium final : public Medium {
@@ -152,20 +161,30 @@ public:
         iovec data{packet.bytes.data(), packet.bytes.size()}; msghdr message{}; message.msg_iov = &data; message.msg_iovlen = 1;
         const auto n = recvmsg(fd_.value, &message, 0);
         if (n < 0) { if (would_block()) return {ReadResult::State::would_block, {}}; system_error("UDP receive"); }
-        require(!(message.msg_flags & MSG_TRUNC), "UDP datagram exceeds chunk size; increase -c (no truncation performed)");
+        // Never forward a truncated datagram, and never let one stop the relay.
+        if (message.msg_flags & MSG_TRUNC) return {ReadResult::State::dropped, {}, static_cast<size_t>(n)};
         packet.bytes.resize(static_cast<size_t>(n)); return {ReadResult::State::packet, std::move(packet)};
     }
-    std::optional<size_t> write(std::span<const std::byte> bytes) override {
+    Write write(std::span<const std::byte> bytes) override {
         const auto n = sendto(fd_.value, bytes.data(), bytes.size(), 0, reinterpret_cast<const sockaddr*>(&peer_.storage), peer_.size);
-        if (n < 0) { if (would_block()) return {}; system_error("UDP send"); }
+        if (n < 0) {
+            // A full buffer or a transient ICMP report loses this datagram only.
+            if (would_block() || errno == ENOBUFS || errno == ECONNREFUSED) return Write::blocked;
+            if (errno == EMSGSIZE) return Write::rejected;
+            system_error("UDP send");
+        }
         require(static_cast<size_t>(n) == bytes.size(), "Partial UDP datagram write");
-        return static_cast<size_t>(n);
+        return Write::done;
     }
     void wait(std::chrono::milliseconds timeout) override { fd_.wait(input_, timeout); }
 };
+// One SRT endpoint. As in the original, a listener serves one client at a time:
+// it stops listening while that client is connected and listens again after it
+// leaves. Connection state is read when the poller reports a change, with a slow
+// periodic check for the endpoint the relay is not currently waiting on.
 class SrtMedium final : public Medium {
     EndpointOptions endpoint_;
-    bool input_, ready_ = false, ended_ = false;
+    bool input_, ready_ = false, ended_ = false, dirty_ = false;
     const Options& options_;
     srtmux::Provider provider_;
     srtmux::Profile profile_;
@@ -175,26 +194,78 @@ class SrtMedium final : public Medium {
     std::optional<srtmux::Registration> listener_registration_, connection_registration_;
     srtmux::Endpoint address_;
     std::optional<srtmux::Endpoint> local_;
-    Clock::time_point retry_at_{};
-    void log(const char* event) const {
-        if (!options_.quiet) std::cerr << event << ' ' << (input_ ? "source" : "target") << " provider=" << endpoint_.provider << '\n';
+    Clock::time_point retry_at_{}, check_at_{};
+    size_t payload_ = 0;
+    std::string last_failure_;
+    const char* side() const { return input_ ? "source" : "target"; }
+    srtmux::Interest interest() const {
+        using srtmux::Interest;
+        // STATE is level-triggered once connected, so it is requested only
+        // while the connection attempt is still in progress.
+        if (!ready_) return Interest::state | Interest::error;
+        return (input_ ? Interest::read : Interest::write) | Interest::error;
     }
-    void register_connection() {
-        connection_registration_ = checked(poller_.add(*connection_, (input_ ? srtmux::Interest::read : srtmux::Interest::write) | srtmux::Interest::state | srtmux::Interest::error));
+    // A failed attempt is reported once per distinct reason, not on every retry.
+    void attempt_failed(const std::string& reason, bool authentication = false) {
+        if (!options_.reconnect) throw std::runtime_error(authentication ? "SRT authentication failed: " + reason : "SRT connection failed (auto-reconnect disabled): " + reason);
+        if (!options_.quiet && reason != last_failure_) std::cerr << "SRT " << side() << " connection failed: " << reason << "; retrying\n";
+        last_failure_ = reason;
+    }
+    void release_connection() {
+        ready_ = false; payload_ = 0;
+        if (connection_registration_) { (void)poller_.remove(*connection_registration_); connection_registration_.reset(); }
+        connection_.reset();
+        retry_at_ = Clock::now() + std::chrono::milliseconds(250);
     }
     void disconnected(const srtmux::Error* error = nullptr) {
-        if (error && error->category == srtmux::ErrorCategory::authentication) throw std::runtime_error("SRT authentication failed");
-        if (!options_.reconnect && !ready_) throw std::runtime_error("SRT connection failed (auto-reconnect disabled)");
-        if (!options_.reconnect) ended_ = true;
-        log("Disconnected"); ready_ = false;
-        if (connection_registration_) { checked(poller_.remove(*connection_registration_)); connection_registration_.reset(); }
-        connection_.reset();
-        if (!ended_ && listener_ && !listener_registration_) listener_registration_ = checked(poller_.add(*listener_, srtmux::Interest::read | srtmux::Interest::error));
-        retry_at_ = Clock::now() + std::chrono::milliseconds(250);
+        const bool was_connected = ready_;
+        release_connection();
+        if (was_connected) {
+            if (!options_.quiet) std::cerr << "SRT " << side() << " disconnected\n";
+            if (!options_.reconnect) ended_ = true;
+            return;
+        }
+        const bool authentication = error && error->category == srtmux::ErrorCategory::authentication;
+        std::string reason = authentication ? "wrong or missing passphrase" : error && !error->message.empty() ? error->message : "no connection";
+        if (error && error->rejection_code) reason += " (rejection " + std::to_string(*error->rejection_code) + ")";
+        attempt_failed(reason, authentication);
     }
     void io_failed(const srtmux::IoError& error, const srtmux::Error& detail) {
         if (error.category == srtmux::ErrorCategory::connection_lost || error.category == srtmux::ErrorCategory::timeout || error.category == srtmux::ErrorCategory::peer_rejected) disconnected(&detail);
         else throw std::runtime_error("SRT I/O: " + detail.message);
+    }
+    bool listen() {
+        auto listener = provider_.listen_profile(profile_, address_);
+        if (auto* error = std::get_if<srtmux::Error>(&listener)) {
+            // The port of the previous listener may still be settling; retry.
+            attempt_failed("listen: " + error->message); retry_at_ = Clock::now() + std::chrono::milliseconds(250); return false;
+        }
+        listener_.emplace(std::get<srtmux::Listener>(std::move(listener)));
+        listener_registration_ = checked(poller_.add(*listener_, srtmux::Interest::read | srtmux::Interest::error));
+        if (options_.verbose && !options_.quiet) std::cerr << "Listening " << side() << " provider=" << endpoint_.provider << '\n';
+        return true;
+    }
+    bool accept() {
+        std::array<srtmux::Event, 1> events{};
+        auto ready = poller_.wait(events, std::chrono::milliseconds(0));
+        if (std::holds_alternative<srtmux::TimedOut>(ready) || std::holds_alternative<srtmux::Interrupted>(ready)) return false;
+        require(std::holds_alternative<size_t>(ready), "SRT listener poll failed");
+        auto accepted = listener_->accept();
+        if (auto* error = std::get_if<srtmux::Error>(&accepted)) throw std::runtime_error("SRT accept: " + error->message);
+        if (std::holds_alternative<srtmux::WouldBlock>(accepted)) return false;
+        connection_.emplace(std::get<srtmux::Connection>(std::move(accepted)));
+        // One client at a time: later callers are refused, not parked unseen.
+        (void)poller_.remove(*listener_registration_); listener_registration_.reset(); listener_.reset();
+        if (!options_.quiet) std::cerr << "Accepted SRT " << side() << " connection\n";
+        return true;
+    }
+    bool connect() {
+        auto connection = provider_.connect_profile(profile_, address_, local_);
+        if (auto* error = std::get_if<srtmux::Error>(&connection)) {
+            attempt_failed("connect: " + error->message); retry_at_ = Clock::now() + std::chrono::milliseconds(250); return false;
+        }
+        connection_.emplace(std::get<srtmux::Connection>(std::move(connection)));
+        return true;
     }
 public:
     SrtMedium(EndpointOptions endpoint, bool input, const Options& options, Providers& providers)
@@ -206,37 +277,40 @@ public:
         if (!endpoint_.listener && endpoint_.local) local_ = numeric(resolve(endpoint_.local->address, endpoint_.local->port, true, resolved.storage.ss_family));
         if (endpoint_.listener) {
             if (endpoint_.local && endpoint_.local->port && endpoint_.local->port != endpoint_.port) throw std::invalid_argument("Listener bind port must match URI port");
+            // The first listen must succeed; only later re-listens are retried.
             listener_.emplace(checked(provider_.listen_profile(profile_, address_)));
             listener_registration_ = checked(poller_.add(*listener_, srtmux::Interest::read | srtmux::Interest::error));
-            log("Listening");
+            if (options_.verbose && !options_.quiet) std::cerr << "Listening " << side() << " provider=" << endpoint_.provider << '\n';
         }
-        if (options_.verbose && !options_.quiet) std::cerr << "Loaded " << (input_ ? "source" : "target") << " provider=" << provider_.info().implementation << " release=" << provider_.info().release << " fingerprint=" << provider_.info().build_fingerprint << '\n';
+        if (options_.verbose && !options_.quiet) std::cerr << "Loaded " << side() << " provider=" << provider_.info().implementation << " release=" << provider_.info().release << " fingerprint=" << provider_.info().build_fingerprint << '\n';
     }
     void tick() override {
         if (ended_) return;
-        if (!connection_ && Clock::now() >= retry_at_) {
-            if (listener_) {
-                std::array<srtmux::Event, 1> events{};
-                auto ready = poller_.wait(events, std::chrono::milliseconds(0));
-                if (std::holds_alternative<srtmux::TimedOut>(ready)) return;
-                require(std::holds_alternative<size_t>(ready), "SRT listener poll failed");
-                if (!std::get<size_t>(ready)) return;
-                auto accepted = listener_->accept();
-                if (auto* error = std::get_if<srtmux::Error>(&accepted)) throw std::runtime_error("SRT accept: " + error->message);
-                if (std::holds_alternative<srtmux::WouldBlock>(accepted)) return;
-                connection_.emplace(std::get<srtmux::Connection>(std::move(accepted)));
-                checked(poller_.remove(*listener_registration_)); listener_registration_.reset();
-            } else connection_.emplace(checked(provider_.connect_profile(profile_, address_, local_)));
-            register_connection();
+        const auto now = Clock::now();
+        if (!connection_) {
+            if (now < retry_at_) return;
+            if (endpoint_.listener) { if ((!listener_ && !listen()) || !accept()) return; }
+            else if (!connect()) return;
+            connection_registration_ = checked(poller_.add(*connection_, interest()));
+            dirty_ = true;
         }
-        if (!connection_) return;
+        if (!dirty_ && now < check_at_) return;
+        dirty_ = false;
         auto info = checked(connection_->info());
         if (info.state == srtmux::State::connected) {
-            if (!ready_) { ready_ = true; log("Connected"); }
-        } else if (info.state == srtmux::State::failed || info.state == srtmux::State::closed || info.state == srtmux::State::closing) disconnected(info.terminal_error ? &*info.terminal_error : nullptr);
+            if (!ready_) {
+                ready_ = true; last_failure_.clear();
+                payload_ = info.max_message_bytes.value_or(0);
+                checked(poller_.update(*connection_registration_, interest()));
+                if (!endpoint_.listener && !options_.quiet) std::cerr << "SRT " << side() << " connected\n";
+            }
+        } else if (info.state == srtmux::State::failed || info.state == srtmux::State::closed || info.state == srtmux::State::closing)
+            disconnected(info.terminal_error ? &*info.terminal_error : nullptr);
+        check_at_ = now + std::chrono::milliseconds(ready_ ? 100 : 10);
     }
     bool connected() const override { return ready_; }
     bool ended() const override { return ended_; }
+    size_t message_limit() const override { return payload_ ? payload_ : endpoint_.profile.transport.payload_bytes; }
     ReadResult read(size_t chunk) override {
         if (!ready_) return {ReadResult::State::would_block, {}};
         Packet packet; packet.bytes.resize(chunk); srtmux::Error detail{};
@@ -246,19 +320,23 @@ public:
         packet.bytes.resize(std::get<srtmux::ReceivedMessage>(result).bytes);
         return {ReadResult::State::packet, std::move(packet)};
     }
-    std::optional<size_t> write(std::span<const std::byte> bytes) override {
-        if (!ready_) return {};
+    Write write(std::span<const std::byte> bytes) override {
+        if (!ready_) return Write::blocked;
+        if (bytes.empty() || bytes.size() > payload_) return Write::rejected;
         srtmux::Error detail{}; auto result = connection_->send_message(bytes, {}, &detail);
-        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error, detail); return {}; }
-        if (std::holds_alternative<srtmux::WouldBlock>(result)) return {};
-        return bytes.size();
+        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error, detail); return Write::blocked; }
+        if (std::holds_alternative<srtmux::WouldBlock>(result)) return Write::blocked;
+        return Write::done;
     }
     void wait(std::chrono::milliseconds timeout) override {
-        // An empty caller poller cannot wait until the next scheduled retry.
+        // A poller with no registration cannot wait until the next retry.
         if (!connection_registration_ && !listener_registration_) { (void)poll(nullptr, 0, static_cast<int>(timeout.count())); return; }
-        std::array<srtmux::Event, 4> events{}; srtmux::Error detail{};
+        std::array<srtmux::Event, 2> events{}; srtmux::Error detail{};
         auto result = poller_.wait(events, timeout, &detail);
         if (std::holds_alternative<srtmux::IoError>(result)) throw std::runtime_error("SRT poll: " + detail.message);
+        if (auto* count = std::get_if<size_t>(&result))
+            for (size_t i = 0; i < *count; ++i)
+                if (srtmux::contains(events[i].readiness, srtmux::Interest::error) || srtmux::contains(events[i].readiness, srtmux::Interest::state)) dirty_ = true;
     }
     std::string statistics() override {
         if (!ready_) return "null";

@@ -87,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
                             sender_uri += f'&provider={sender_provider}'
                             default_provider = 'haivision' if sender_provider == 'robotweax' else 'robotweax'
                         sender = group.start('sender', f'udp://127.0.0.1:{udp_port}', sender_uri, '--provider', default_provider, '-a:no')
-                        group.ready(sender, 'Connected target'); group.ready(receiver, 'Connected source')
+                        group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
                         received, tail = feed_and_capture(udp_port, sink, b'matrix')
                         assert f'Loaded target provider={sender_provider}' in sender[1].read_text()
                         assert f'Loaded source provider={receiver_provider}' in receiver[1].read_text()
@@ -104,9 +104,9 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
                 receiver = group.start('bridge-sink', f'srt://127.0.0.1:{right}?mode=listener&provider={second}', f'udp://127.0.0.1:{sink.getsockname()[1]}')
                 group.ready(receiver, 'Listening source')
                 bridge = group.start('bridge', f'srt://127.0.0.1:{left}?mode=listener&provider={first}', f'srt://127.0.0.1:{right}?provider={second}')
-                group.ready(bridge, 'Listening source'); group.ready(bridge, 'Connected target')
+                group.ready(bridge, 'Listening source'); group.ready(bridge, 'SRT target connected')
                 sender = group.start('bridge-feed', f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{left}?provider={first}')
-                group.ready(sender, 'Connected target'); group.ready(bridge, 'Connected source')
+                group.ready(sender, 'SRT target connected'); group.ready(bridge, 'Accepted SRT source connection')
                 received, tail = feed_and_capture(udp_port, sink, b'bridge')
                 assert f'Loaded source provider={first}' in bridge[1].read_text() and f'Loaded target provider={second}' in bridge[1].read_text()
                 print('in-process', first, '->', second, 'received', received, 'tail', tail, flush=True)
@@ -124,7 +124,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
                     receiver = group.start('ipv6-sink', f'srt://[::1]:{listen_port}?mode=listener&provider=robotweax', f'udp://127.0.0.1:{sink.getsockname()[1]}', '-a:no')
                     group.ready(receiver, 'Listening source')
                     sender = group.start('ipv6-feed', f'udp://127.0.0.1:{udp_port}', f'srt://[::1]:{listen_port}?provider=haivision', '-a:no')
-                    group.ready(sender, 'Connected target'); group.ready(receiver, 'Connected source')
+                    group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
                     feed_and_capture(udp_port, sink, b'ipv6')
                 finally: group.close()
     # A finite file feeds Live messages; accepted peer closure flushes the capture.
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             receiver = group.start('finite-sink', f'srt://127.0.0.1:{listen_port}?mode=listener&provider={receiver_provider}', str(capture_path), '-a:no')
             group.ready(receiver, 'Listening source')
             sender = group.start('finite-feed', str(source_path), f'srt://127.0.0.1:{listen_port}?provider={provider}', '-a:no')
-            group.ready(sender, 'Connected target')
+            group.ready(sender, 'SRT target connected')
             sender[0].wait(timeout=8); receiver[0].wait(timeout=8)
             captured = capture_path.read_bytes()
             assert captured and captured == payload[:len(captured)], (len(captured), len(payload))
@@ -152,10 +152,10 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             for index, provider in enumerate(('robotweax', 'haivision')):
                 udp_port = port()
                 sender = group.start('reconnect-feed-' + str(index), f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}', '-a:no')
-                group.ready(sender, 'Connected target')
+                group.ready(sender, 'SRT target connected')
                 feed_and_capture(udp_port, sink, b'session' + bytes([index]))
                 sender[0].send_signal(signal.SIGINT); sender[0].wait(timeout=5)
-                if index == 0: group.ready(receiver, 'Disconnected source')
+                if index == 0: group.ready(receiver, 'SRT source disconnected')
         finally: group.close()
     # A persistent caller must reconnect after its listening sender is restarted.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
@@ -165,10 +165,10 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             for index, provider in enumerate(('robotweax', 'haivision')):
                 udp_port = port()
                 sender = group.start('listen-feed-' + str(index), f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?mode=listener&provider={provider}', '-a:no')
-                group.ready(sender, 'Connected target'); group.ready(receiver, 'Connected source', index + 1)
+                group.ready(sender, 'Accepted SRT target connection'); group.ready(receiver, 'SRT source connected', index + 1)
                 feed_and_capture(udp_port, sink, b'caller' + bytes([index]))
                 sender[0].send_signal(signal.SIGINT); sender[0].wait(timeout=5)
-                if index == 0: group.ready(receiver, 'Disconnected source')
+                if index == 0: group.ready(receiver, 'SRT source disconnected')
         finally: group.close()
     # An initial encryption mismatch must fail, not fall back to plaintext.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
@@ -180,4 +180,38 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             sender[0].wait(timeout=12)
             assert sender[0].returncode != 0 and secret not in sender[1].read_text()
         finally: group.close(check=False)
-print('Provider matrix, AES/rejection, IPv6, native snapshots, mixed-provider bridges and both reconnect roles pass')
+    # With reconnect enabled a wrong passphrase is retried as in the original,
+    # reported once with its reason, and never spins or falls back to plaintext.
+    for provider in ('haivision', 'robotweax'):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
+            sink.bind(('127.0.0.1', 0)); listen_port, udp_port = port(), port(); group = Processes(root)
+            try:
+                receiver = group.start('retry-key-sink-' + provider, f'srt://127.0.0.1:{listen_port}?mode=listener&provider=haivision&passphrase={secret}&pbkeylen=16', f'udp://127.0.0.1:{sink.getsockname()[1]}')
+                group.ready(receiver, 'Listening source')
+                sender = group.start('retry-key-feed-' + provider, f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}&passphrase=different-public-fixture&pbkeylen=16')
+                group.ready(sender, 'wrong or missing passphrase')
+                time.sleep(2.5)
+                text = sender[1].read_text()
+                assert sender[0].poll() is None and text.count('connection failed') == 1 and 'SRT target connected' not in text, text
+            finally: group.close()
+    # A listener serves one client at a time, and an idle connected SRT source
+    # must wait in the poller rather than spin.
+    for provider in ('haivision', 'robotweax'):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
+            sink.bind(('127.0.0.1', 0)); listen_port, udp_port, second_port = port(), port(), port(); group = Processes(root)
+            try:
+                receiver = group.start('single-sink-' + provider, f'srt://127.0.0.1:{listen_port}?mode=listener&provider={provider}', f'udp://127.0.0.1:{sink.getsockname()[1]}')
+                group.ready(receiver, 'Listening source')
+                sender = group.start('single-feed-' + provider, f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}')
+                group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
+                extra = group.start('single-extra-' + provider, f'udp://127.0.0.1:{second_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}&conntimeo=500')
+                def cpu_seconds(process):
+                    minutes, seconds = subprocess.check_output(['ps', '-o', 'time=', '-p', str(process.pid)], text=True).strip().rsplit(':', 1)
+                    return sum(int(part) * 60 ** index for index, part in enumerate(reversed(minutes.split(':')), 1)) + float(seconds)
+                before = cpu_seconds(receiver[0]); time.sleep(3); used = cpu_seconds(receiver[0]) - before
+                assert used < 0.5, f'idle connected SRT source used {used:.2f} s CPU in 3 s'
+                assert 'SRT target connected' not in extra[1].read_text(), 'second caller was accepted while the listener was busy'
+                feed_and_capture(udp_port, sink, b'single')
+                print('single client', provider, 'idle CPU seconds in 3 s:', round(used, 2), flush=True)
+            finally: group.close()
+print('Provider matrix, AES/rejection, IPv6, native snapshots, mixed-provider bridges and both reconnect roles, retry reporting, single-client listening and idle waiting pass')

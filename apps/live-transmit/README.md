@@ -51,8 +51,12 @@ Console and regular-file sources/sinks are supported (`file://con` means
 stdin/stdout). Media bytes use stdout only when requested; diagnostics and
 default statistics always use stderr. Files use `file:///absolute/path` or a
 plain path. Quote URIs containing `&` in the shell. UDP preserves datagram
-boundaries; oversized input datagrams fail rather than being truncated. Set
-`-c` to the required size, at most 1,456 bytes when SRT is involved.
+boundaries. An input datagram larger than `-c` is dropped whole and counted as
+lost; it is never truncated and never stops the relay. As in the original, `-c`
+is the read size (default 1,456) and the SRT `payloadsize` option is the message
+limit (default 1,316, at most 1,456); they are independent. A packet larger than
+the SRT target's payload size is counted as lost, so raise `payloadsize` to carry
+larger datagrams. For an SRT input `-c` must be at least its `payloadsize`.
 
 ## CLI compatibility and supported settings
 
@@ -71,7 +75,7 @@ options, URI options and unsupported values fail explicitly.
 | Profile tuning | `maxbw`, `inputbw`, `oheadbw`, `fc`, `ipttl`, `iptos`, `ipv6only`, `kmrefreshrate`, `kmpreannounce`, `udpsndbuf`, `udprcvbuf` |
 | Required Live policies | `transtype=live`, enabled `tsbpd`/`tsbpdmode`, `messageapi`, `enforcedencryption` |
 | UDP | IPv4/IPv6 unicast; IPv4 multicast; `adapter` as numeric IPv4, `ttl`, `tos`, `buffer_size`, `multicast` |
-| Relay | `-c` chunk, `-buffering` bounded packet queue, `-a` reconnect (default yes) |
+| Relay | `-c` chunk (default 1456), `-buffering` packets read per pass (default 10), `-a` reconnect (default yes) |
 | Timeout | `-t` seconds, `-tm:0` whole-run / `-tm:1` disconnected timer |
 | Diagnostics | `-q`, `-v`, `-s`/`-r` packet-frequency reports; `-statsout`, `-pf:default/json` |
 
@@ -93,19 +97,42 @@ A missing tail at the end of a Live transmission is allowed. File endpoints
 feed or capture a **Live stream** and do not grant it reliable File semantics.
 The relay does not implement the separate `srt-file-transmit` application.
 
-On local input EOF, the app sends its queued messages then keeps the target
-alive for `--eof-grace-ms` (default 1,000 ms). This is bounded best-effort grace,
-not a guaranteed native drain-close. Ctrl-C, SIGTERM and the configured timer
-stop promptly, close their owned endpoints and return success; already queued
-data may remain unsent. I/O and setup errors return failure. The 250-ms reconnect
-retry delay does not bypass the configured native connection timeout. A single
-listener serves one active peer at a time and accepts a new peer after a
-disconnect. With `-a:no`, an established session's disconnect stops normally;
-failure to establish the initial connection still returns failure.
+On local input EOF, the app keeps the target alive for `--eof-grace-ms` (default
+1,000 ms). This is bounded best-effort grace, not a guaranteed native
+drain-close. Ctrl-C, SIGTERM and the configured timer stop promptly, close their
+owned endpoints and return success. I/O and setup errors return failure.
 
-The relay bounds its user-space queue by `-buffering` (default 10 packets) and
-applies backpressure to its input when full. UDP senders may still lose datagrams
-in OS/network queues under overload. Throughput/WAN qualification of this new
+Connection handling follows the original:
+
+- A listener serves one client at a time. It stops listening while that client
+  is connected, so further callers are refused rather than connected and
+  ignored, and it listens again after the client leaves.
+- With reconnect enabled (the default) a failed or lost connection is retried
+  every 250 ms. A failed attempt is reported once per distinct reason, for
+  example `SRT target connection failed: wrong or missing passphrase; retrying`.
+  The retry delay does not bypass the configured native connection timeout.
+- With `-a:no`, an established session's disconnect stops normally; failure to
+  establish the initial connection returns failure and names the reason.
+
+Status lines match the original where the event is the same: `Media path: ...`
+(without the URI query, which can hold a passphrase), `SRT source connected`,
+`SRT target connected`, `Accepted SRT source connection`, `SRT target
+disconnected` and the periodic `N bytes lost, M bytes sent, K bytes received`.
+
+## Data handling under load
+
+The relay follows the original's Live rule: it reads up to `-buffering` packets
+per pass and hands each one to the target at once. A packet the target cannot
+take, because the target is not connected, its buffer is full, or the packet
+exceeds its message limit, is counted as lost and reported every five seconds
+while losses continue. Live data is not held back and delivered late.
+
+File and console sources are the one exception, because pausing them loses
+nothing: they are not read while the target is unavailable or full, and they are
+read in units the SRT target can carry.
+
+While both endpoints are connected the relay waits in the source's poller and
+wakes only for data or a state change. Throughput/WAN qualification of this
 application is separate from functional interoperability and remains pending.
 
 ## Install a bundle

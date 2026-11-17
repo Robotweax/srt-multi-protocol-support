@@ -41,6 +41,7 @@ bad = [
     ['file://con', 'srt://127.0.0.1:9000?missing-value'],
     ['file://con', 'srt://127.0.0.1:9000junk'],
     ['file://con', 'srt://127.0.0.1:9000?pbkeylen=16'],
+    ['-c:1000', 'srt://127.0.0.1:9000?mode=listener', 'file://con'],  # Input chunk below the SRT payload.
 ]
 for arguments in bad:
     result = run(*arguments)
@@ -76,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-transmit-cli-') as temporary:
     with (root / 'signal.log').open('wb') as log:
         process = subprocess.Popen([app, 'file://con', str(target)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log)
         try:
-            wait_text(root / 'signal.log', 'Relay ready', process)
+            wait_text(root / 'signal.log', 'Media path', process)
             process.send_signal(signal.SIGTERM); process.wait(timeout=3)
             assert process.returncode == 0
         finally:
@@ -87,12 +88,18 @@ with tempfile.TemporaryDirectory(prefix='srtmux-transmit-cli-') as temporary:
     with (root / 'udp.log').open('wb') as log:
         process = subprocess.Popen([app, '-c:8', f'udp://127.0.0.1:{port}', str(target)], stdout=subprocess.DEVNULL, stderr=log)
         try:
-            wait_text(root / 'udp.log', 'Relay ready', process)
+            wait_text(root / 'udp.log', 'Media path', process)
+            # An oversized datagram is dropped whole and must not stop the relay.
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
                 sender.sendto(b'oversize-datagram', ('127.0.0.1', port))
-            process.wait(timeout=4)
-            assert process.returncode != 0 and target.read_bytes() == b''
-            assert 'exceeds chunk size' in (root / 'udp.log').read_text()
+                wait_text(root / 'udp.log', 'larger than the chunk size was dropped', process)
+                sender.sendto(b'fits-now', ('127.0.0.1', port))
+                deadline = time.monotonic() + 4
+                while target.read_bytes() != b'fits-now':
+                    assert process.poll() is None and time.monotonic() < deadline, (root / 'udp.log').read_text()
+                    time.sleep(.02)
+            process.send_signal(signal.SIGINT); process.wait(timeout=4)
+            assert process.returncode == 0 and target.read_bytes() == b'fits-now'
         finally:
             if process.poll() is None: process.kill(); process.wait()
     if socket.has_ipv6:
@@ -106,7 +113,7 @@ with tempfile.TemporaryDirectory(prefix='srtmux-transmit-cli-') as temporary:
             with sink, (root / 'ipv6.log').open('wb') as log:
                 process = subprocess.Popen([app, f'udp://[::1]:{ipv6_port}', f'udp://[::1]:{sink.getsockname()[1]}'], stdout=subprocess.DEVNULL, stderr=log)
                 try:
-                    wait_text(root / 'ipv6.log', 'Relay ready', process)
+                    wait_text(root / 'ipv6.log', 'Media path', process)
                     with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as feed:
                         for packet in [b'ipv6-data', b'']:
                             feed.sendto(packet, ('::1', ipv6_port)); sink.settimeout(2)

@@ -22,7 +22,8 @@ the executable; each SRT endpoint selects its own runtime provider module.
 - Native non-clearing statistics, quiet/verbose output, no URI passphrase echo,
   malformed/duplicate options, numeric bounds, percent encoding and unknown features.
 - Binary stdin/stdout preservation, local file alias protection, timer/signal exit,
-  and rejection of oversized UDP input without silently truncating its payload.
+  and oversized UDP input being dropped whole, without truncation and without
+  stopping the relay.
 
 Finite Live captures require a nonempty intact prefix. Missing trailing data are
 allowed by the accepted Live rule; inner gaps, reordering or byte changes fail
@@ -60,3 +61,28 @@ The application currently supports Linux/macOS. Unsupported native options fail
 explicitly; see the [CLI scope and examples](../../apps/live-transmit/README.md).
 Application CPU/throughput, WAN behavior and broader deployment qualification
 remain separate work. The earlier foundation performance assessment is retained.
+
+## Review fixes — 17 November 2026
+
+A review of the first revision of this application found four defects, each
+reproduced with the built executable before the fix and covered by a test now:
+
+| Defect | Before | After |
+| --- | --- | --- |
+| Idle connected SRT source | 5.01 s (Haivision) and 1.54 s (Robotweax) process CPU in 5 s | 0.03 s and 0.00 s |
+| Wrong passphrase with reconnect enabled | Retried four times a second, 30 identical lines in 8 s, no reason given | Retried, reason reported once |
+| Second caller to a busy listener | Reported connected and sent into nothing | Refused until the listener is free |
+| Oversized UDP datagram | Stopped the relay with exit status 1 | Dropped, counted as lost, relay continues |
+
+The idle spin came from keeping the level-triggered state interest registered
+after connecting and reading connection state on every pass. State is now read
+when the poller reports a change, with a 100 ms check for the endpoint the relay
+is not waiting on.
+
+The relay was also brought closer to the original: `-c` defaults to 1,456 and is
+independent of `payloadsize`, data the target cannot take is counted as lost
+instead of being queued and delivered late, and status lines use the original's
+wording. The unmodified Haivision 1.5.7 application still exchanges all 24
+messages with both providers, in both directions, plaintext and AES-128.
+The accepted Live tail rule and its checks are unchanged.
+
