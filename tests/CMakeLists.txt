@@ -2,6 +2,19 @@ find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME native_audit_inventory COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/tools/check_native_audit.py")
 add_test(NAME benchmark_analysis COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_analysis_test.py")
+if(SRTMUX_BUILD_APPLICATIONS)
+  add_test(NAME live_transmit_cli COMMAND ${Python3_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/live_transmit_cli_test.py" $<TARGET_FILE:srtmux_live_transmit>)
+  set_tests_properties(live_transmit_cli PROPERTIES TIMEOUT 45)
+  add_test(NAME live_transmit_linkage COMMAND ${Python3_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/live_transmit_linkage_test.py" "${CMAKE_NM}" $<TARGET_FILE:srtmux_live_transmit>)
+  if(SRTMUX_BUILD_PROVIDERS)
+    add_test(NAME live_transmit_providers COMMAND ${Python3_EXECUTABLE}
+      "${CMAKE_CURRENT_SOURCE_DIR}/live_transmit_provider_test.py" $<TARGET_FILE:srtmux_live_transmit>
+      $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision>)
+    set_tests_properties(live_transmit_providers PROPERTIES TIMEOUT 180)
+  endif()
+endif()
 
 function(add_fixture name)
   add_library(${name} MODULE mock_provider.cpp)
