@@ -26,10 +26,15 @@ Native pacing and late-packet-drop defaults are retained; the application adds n
 rate cap. The sender retries only after native WouldBlock. A Live failure cannot
 be turned into a passing sample by accepting partial delivery.
 Connection setup, idle probes and warmup are outside the timed transfer. The
-`persistent-workers-barriers-v1` protocol reuses one sender thread and both payload
+`persistent-workers-memcmp-v2` protocol reuses one sender thread and both payload
 buffers across warmup and measurement. A two-party barrier starts timing only
 when sender and receiver are ready; another stops it after both complete. Thread
-creation/join and buffer allocation are outside timing. Earlier reports used a
+creation/join and buffer allocation are outside timing. Every payload byte is
+compared with an immutable reference buffer using `memcmp`; Live headers retain
+their separate sequence check. The reference is allocated before either phase.
+The earlier `persistent-workers-barriers-v1` used `std::all_of` for verification,
+which is prohibitively expensive under unoptimized GCC ASan instrumentation.
+Its captures remain separate and must not be pooled with v2. Still earlier reports used a
 fresh sender per phase and included its creation/join; do not pool those protocols. SRT worker CPU is included in
 whole-process CPU; application-thread CPU is reported separately.
 
@@ -132,3 +137,8 @@ all six native/module/facade/provider combinations. Every process must report a
 controlled failure and join its worker within the deadline. Qualification clears
 the injection setting explicitly. Ordinary provider close and cancellation code
 is unchanged by these benchmark controls.
+
+Integrity canaries corrupt the first, middle and last body byte in real File and
+Live receive loops on all six provider/path combinations. Each process must fail
+with `payload corruption` and join its worker within the existing deadline.
+Qualification explicitly clears all failure/corruption injection settings.

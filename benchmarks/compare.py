@@ -137,7 +137,7 @@ def main():
             'encryption': args.encryption, 'latency_ms': 120 if args.mode == 'live' else 0, 'mib': args.mib, 'warmup_mib': args.warmup_mib,
             'chunk_bytes': args.chunk_bytes, 'wait': args.wait, 'probe_calls': args.probe_calls,
             'direct_poll_api': args.direct_poll_api, 'profile_setup': args.profile_setup,
-            'timing_protocol': 'persistent-workers-barriers-v1',
+            'timing_protocol': 'persistent-workers-memcmp-v2',
             'diagnostics': 'non-clearing native loss/retransmission before and after timing; OS resource deltas',
             'accounting': 'disabled', 'payload': 'all received bytes verified; Live sequence and boundaries checked',
             'offered_load': 'unpaced, native nonblocking backpressure; no application rate cap'},

@@ -42,7 +42,7 @@ bool use_poll = false;
 bool native_legacy = false;
 size_t chunk_bytes = 32768;
 bool live = false, encrypted = false, profile_setup = false;
-uint64_t fail_side = 0; // Test-only failure injection before a transfer loop.
+uint64_t fail_side = 0; // Test-only: 1 sender, 2 receiver, 3/4/5 first/middle/last body byte.
 constexpr char benchmark_secret[] = "srtmux-public-benchmark-secret"; // Test fixture, never a production credential.
 uint64_t transfer_bytes(uint64_t mib) {
     const auto bytes = mib*1024*1024;
@@ -372,6 +372,7 @@ struct Sample { double seconds, cpu_seconds; Counts tx, rx; SchedulerDiagnostics
 class Transfer {
     Backend& backend;
     std::vector<uint8_t> input, output;
+    const std::vector<uint8_t> expected; // Immutable reference, allocated before timing.
     uint64_t bytes = 0;
     bool stopping = false; // Published by the start barrier, never read earlier.
     std::atomic<bool> cancel{false};
@@ -419,7 +420,7 @@ class Transfer {
         }
     }
 public:
-    explicit Transfer(Backend& b) : backend(b), input(chunk_bytes,0x5a), output(chunk_bytes), sender([this] { send_loop(); }) {}
+    explicit Transfer(Backend& b) : backend(b), input(chunk_bytes,0x5a), output(chunk_bytes), expected(chunk_bytes,0x5a), sender([this] { send_loop(); }) {}
     ~Transfer() { stopping=true; begin.arrive_and_wait(); } // jthread joins before barriers are destroyed.
     Sample run(uint64_t total) {
         bytes=total; sample={}; sender_error=nullptr; cancel=false;
@@ -442,7 +443,12 @@ public:
                         uint64_t sequence; std::memcpy(&sequence,output.data(),sizeof(sequence));
                         require(sequence==received/chunk_bytes,"Live message lost, reordered or duplicated"); header=sizeof(sequence);
                     }
-                    require(std::all_of(output.begin()+static_cast<ptrdiff_t>(header),output.begin()+n,[](uint8_t b) { return b==0x5a; }),"payload corruption");
+                    const auto body = static_cast<size_t>(n)-header;
+                    if (fail_side >= 3 && received == 0 && body) {
+                        const auto offset = fail_side == 3 ? 0 : fail_side == 4 ? body/2 : body-1;
+                        output[header+offset] ^= 1; // Integrity canary, never enabled in qualification.
+                    }
+                    require(std::memcmp(output.data()+header, expected.data()+header, body)==0,"payload corruption");
                 }
                 received+=static_cast<uint64_t>(n);
             }
@@ -468,7 +474,7 @@ int main(int argc, char** argv) {
         require(argc == 5, "Usage: module_benchmark MiB module implementation release"); const char* path = "module";
 #endif
         const auto mib = std::stoull(argv[1]); require(mib > 0 && mib <= 4096, "MiB must be 1..4096");
-        fail_side=setting("SRTMUX_BENCH_FAIL_SIDE",0,2);
+        fail_side=setting("SRTMUX_BENCH_FAIL_SIDE",0,5);
         profile_setup = setting("SRTMUX_BENCH_PROFILE_SETUP",0,1)!=0;
         use_poll = setting("SRTMUX_BENCH_POLL",0,1)!=0;
         native_legacy = setting("SRTMUX_BENCH_NATIVE_LEGACY",0,1)!=0;
@@ -495,7 +501,7 @@ int main(int argc, char** argv) {
             << ",\"build_fingerprint\":\"" << backend.fingerprint << "\",\"seconds\":" << sample.seconds << ",\"cpu_seconds\":" << sample.cpu_seconds
             << ",\"wait\":\"" << (use_poll?"poll":"yield") << "\",\"chunk_bytes\":" << chunk_bytes
             << ",\"mode\":\"" << (live?"live":"file") << "\",\"encryption\":\"" << (encrypted?"aes-128-ctr":"none") << "\""
-            << ",\"timing_protocol\":\"persistent-workers-barriers-v1\""
+            << ",\"timing_protocol\":\"persistent-workers-memcmp-v2\""
             << ",\"profile_setup\":" << ((profile_setup && std::strcmp(path,"direct")!=0)?"true":"false")
             << ",\"messages\":" << (live?bytes/chunk_bytes:0)
             << ",\"warmup_mib\":" << warmup << ",\"tx_calls\":" << sample.tx.calls << ",\"rx_calls\":" << sample.rx.calls
