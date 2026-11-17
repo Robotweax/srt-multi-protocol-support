@@ -129,11 +129,15 @@ socket. A small bridge, compiled with the pinned vendor target’s own headers a
 definitions, sets its native readiness and signals the vendor event. It creates
 no UDP transport or helper thread. The bridge is private and is included in build
 fingerprints as `native-wake`; no vendor C++ layout crosses the module boundary.
-Robotweax also uses native `srt_epoll_uwait`. Its wake identity is an ordinary
-unbound SRT socket registered for the error event: closing that socket makes the
-vendor poll report it at once, and the adapter re-arms with a fresh socket when
-the waiter drains the wake. Only public vendor API is used; there is no OS wake
-descriptor and therefore no system-socket polling tick. Both providers share one
+Robotweax also uses native `srt_epoll_uwait`. With the pinned 0.3.3 its wake
+identity is an ordinary unbound SRT socket registered for the error event:
+closing that socket makes the vendor poll report it at once, and the adapter
+re-arms with a fresh socket when the waiter drains the wake. When the vendor
+header declares `robotweax_srt_epoll_wake` (releases after 0.3.3), the adapter
+calls that instead and needs no wake socket; `build_features` records which one
+a module uses as `native-wake=close-notify` or `native-wake=epoll-wake`. Only
+public vendor API is used either way; there is no OS wake descriptor and
+therefore no system-socket polling tick. Both providers share one
 wait and translation path. There is no coordinator thread, wrapper timer slicing
 or scan of all registered sockets on each wait. Each ready event costs one lookup,
 and a wait does work proportional to the events it reports rather than to the
