@@ -1,0 +1,20 @@
+{
+  "base_commit": "8f3579cecdda1ef79a2ee8080513c79a42b4e96a",
+  "note": "Working tree implementation; runtime sources frozen during all performance captures. Documentation-only edits continued. Per-capture reports contain binary hashes and provider fingerprints.",
+  "source_sha256": {
+    "providers/adapter.cpp": "898026e7a07cbb236398ba4af338f532f23742544f9901944399efebf5d48cae",
+    "providers/polling.hpp": "8742cb45dc38d227756c12d3751e7396744cc98c26678696670dca438362363c",
+    "providers/extensions.hpp": "49bf99012603e261317271839a2635dbff9849ccba3e505aaf3efb11905e2859",
+    "providers/metrics.inc": "0a707f1a68cfde56dbdc18b5c3be1c0b5d5249b7a981e9c1bbeb8fcabdd917e7",
+    "providers/haivision_wake.cpp": "5cc549c2fe8e4037cd65c97e416a2b7cd428512d49f000795406408e70f90c85",
+    "providers/haivision_close_patch.cmake": "33960b6dcb3c39c9ce6264e0c37efeb6838063efd2411a77dd8f0fdeb7b3dc59",
+    "providers/CMakeLists.txt": "957d7f2f2ff0aa1bca28b9174bcd8e6c3b128aa7a715e6b789c4893c5633041c",
+    "include/srtmux/provider_abi.h": "c45c67b3f26ec7e3fed576917983fc70cc017116037e2b778ed39e259ed890f4",
+    "include/srtmux/extensions.h": "551293271b30db9b19d733cf6b6030f96eebcaab5ad968769acbfe302529c74c",
+    "include/srtmux/transport.hpp": "24761daae67ef85789040038c2e20f5f323a3273086ca1fc9222901475842671",
+    "src/transport.cpp": "0ab03ef423d05a37ea1167599f3859d9e364795cab0c007b16b1445fe3d0d6a9",
+    "src/module.cpp": "7fc33e511f512e3be4e14b15dc6cfd084f598e0d0c54ae5958a65124d96ba454",
+    "benchmarks/throughput.cpp": "e76d53f877fb8d94f73ea9a32e174ef5b5a86368ca7609710e0c39de483c03f0",
+    "benchmarks/compare.py": "afeae78bc31001421df30e1adfccb6fcbf3e84ddbddf835eb5e0065838e7eb25"
+  }
+}

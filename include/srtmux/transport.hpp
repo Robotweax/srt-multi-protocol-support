@@ -2,6 +2,8 @@
 #ifndef SRTMUX_TRANSPORT_HPP
 #define SRTMUX_TRANSPORT_HPP
 
+#include <srtmux/extensions.h>
+#include <string_view>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -169,6 +171,29 @@ struct AbortClose {};
 struct DrainClose { std::chrono::milliseconds timeout; };
 using ClosePolicy = std::variant<AbortClose, DrainClose>;
 
+// Immutable setup snapshot. Zero tuning fields inherit pinned native defaults;
+// max_bandwidth_bytes_s is explicit (-1 unlimited, 0 relative, positive absolute).
+struct ProfileConfig {
+    TransportConfig transport;
+    srtmx_tuning_v1 tuning;
+    static ProfileConfig basic(TransportConfig);
+};
+class Profile final {
+public:
+    ~Profile() noexcept;
+    Profile(Profile&&) noexcept;
+    Profile& operator=(Profile&&) noexcept;
+    Profile(const Profile&) = delete;
+    Profile& operator=(const Profile&) = delete;
+private:
+    friend class Provider;
+    struct Impl;
+    explicit Profile(std::unique_ptr<Impl>);
+    std::unique_ptr<Impl> impl_;
+};
+struct TelemetryCapacity { std::uint32_t required; };
+using TelemetryResult = std::variant<srtmx_snapshot_v1, TelemetryCapacity, IoError>;
+
 class Provider;
 class Connection;
 class Listener;
@@ -195,6 +220,10 @@ public:
     std::variant<std::size_t, WouldBlock, EndOfStream, IoError>
         read_stream(std::span<std::byte>, Error* failure_detail = nullptr);
     Result<Statistics> statistics() const;
+    // Descriptor strings remain provider-owned; the Connection pins the module.
+    Result<srtmx_metric_info_v1> resolve_metric(std::string_view) const;
+    // Caller initializes each record.struct_size. No allocation or reset of counters.
+    TelemetryResult native_snapshot(std::span<const std::uint32_t>, std::span<srtmx_metric_v1>) const;
     CloseResult close(ClosePolicy);
     CloseResult close_status() const;
 private:
@@ -273,6 +302,10 @@ public:
     Result<ValidationReport> validate(Role, const TransportConfig&) const;
     Result<SourceTime> now() const;
     Result<Connection> create_connection(const TransportConfig&) const;
+    Result<Profile> create_profile(const ProfileConfig&) const;
+    Result<Connection> connect_profile(const Profile&, const Endpoint& remote,
+                                       std::optional<Endpoint> local = {}) const;
+    Result<Listener> listen_profile(const Profile&, const Endpoint& local, std::uint32_t backlog = 8) const;
     Result<Listener> listen(const ListenerConfig&) const;
     Result<Poller> create_poller() const;
 private:

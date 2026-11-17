@@ -1,0 +1,30 @@
+{
+  "protocol": "persistent-workers-barriers-v1",
+  "date": "2026-11-17",
+  "cases": [
+    "core-file",
+    "profiles-file"
+  ],
+  "blocks_per_case": 12,
+  "mib": 4096,
+  "warmup_mib": 512,
+  "probe_calls": 20000,
+  "throughput_budget_percent": 2,
+  "cpu_budget_percent": 5,
+  "minimum_seconds": 5,
+  "maximum_native_cv": 0.05,
+  "note": "Fixed before first qualification sample; retain all trials. No tests/builds/profilers overlap. Prior fresh-thread captures remain separate.",
+  "source_sha256": {
+    "benchmarks/throughput.cpp": "47ee325edb3b669bd18ff5eb23bbd5fc1bd6b0cc9b5ee794f3a15a12b73e0383",
+    "benchmarks/compare.py": "e61964fd743dbd52ed06b28790fcf80891fe2f3ba5b3090ffb6400fb91a47bbd",
+    "providers/adapter.cpp": "898026e7a07cbb236398ba4af338f532f23742544f9901944399efebf5d48cae",
+    "providers/polling.hpp": "8742cb45dc38d227756c12d3751e7396744cc98c26678696670dca438362363c",
+    "providers/extensions.hpp": "49bf99012603e261317271839a2635dbff9849ccba3e505aaf3efb11905e2859",
+    "providers/metrics.inc": "0a707f1a68cfde56dbdc18b5c3be1c0b5d5249b7a981e9c1bbeb8fcabdd917e7",
+    "providers/haivision_wake.cpp": "5cc549c2fe8e4037cd65c97e416a2b7cd428512d49f000795406408e70f90c85",
+    "src/transport.cpp": "0ab03ef423d05a37ea1167599f3859d9e364795cab0c007b16b1445fe3d0d6a9",
+    "include/srtmux/provider_abi.h": "c45c67b3f26ec7e3fed576917983fc70cc017116037e2b778ed39e259ed890f4",
+    "include/srtmux/extensions.h": "551293271b30db9b19d733cf6b6030f96eebcaab5ad968769acbfe302529c74c",
+    "include/srtmux/transport.hpp": "24761daae67ef85789040038c2e20f5f323a3273086ca1fc9222901475842671"
+  }
+}

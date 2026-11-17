@@ -4,3 +4,7 @@
 static_assert(std::is_trivially_copyable_v<srtmux::IoError>);
 static_assert(std::is_standard_layout_v<srtm_provider_api_v1>);
 static_assert(!std::is_copy_constructible_v<srtmux::Connection>);
+
+#include <extensions/robotweax_extensions.hpp>
+static_assert(std::is_standard_layout_v<srtmx_profiles_api_v1>);
+static_assert(!std::is_copy_constructible_v<srtmux::extensions::v1::Group>);

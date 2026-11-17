@@ -64,6 +64,7 @@ def summarize(samples, args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--profile-setup', action='store_true', help='create wrapped connections through the versioned profile extension')
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--mib', type=int, default=2048)
     parser.add_argument('--runs', type=int, default=8, help='paired blocks per provider')
@@ -115,7 +116,7 @@ def main():
     files = {p: artifact('srtmux_'+p, True) for p in PROVIDERS}
     binaries = {p: artifact('srtmux_direct_'+p) for p in PROVIDERS}
     binaries.update({p: artifact('srtmux_'+p+'_benchmark') for p in PATHS[1:]})
-    env = dict(os.environ, SRTMUX_BENCH_POLL=str(int(args.wait == 'poll')),
+    env = dict(os.environ, SRTMUX_BENCH_FAIL_SIDE="0", SRTMUX_BENCH_PROFILE_SETUP=str(int(args.profile_setup)), SRTMUX_BENCH_POLL=str(int(args.wait == 'poll')),
         SRTMUX_BENCH_WARMUP_MIB=str(args.warmup_mib), SRTMUX_BENCH_CHUNK=str(args.chunk_bytes),
         SRTMUX_BENCH_PROBES=str(args.probe_calls),
         SRTMUX_BENCH_NATIVE_LEGACY=str(int(args.direct_poll_api == 'legacy')),
@@ -135,7 +136,9 @@ def main():
         'profile': {'mode': args.mode+'/IPv4/'+args.encryption, 'bytes': expected_bytes,
             'encryption': args.encryption, 'latency_ms': 120 if args.mode == 'live' else 0, 'mib': args.mib, 'warmup_mib': args.warmup_mib,
             'chunk_bytes': args.chunk_bytes, 'wait': args.wait, 'probe_calls': args.probe_calls,
-            'direct_poll_api': args.direct_poll_api,
+            'direct_poll_api': args.direct_poll_api, 'profile_setup': args.profile_setup,
+            'timing_protocol': 'persistent-workers-barriers-v1',
+            'diagnostics': 'non-clearing native loss/retransmission before and after timing; OS resource deltas',
             'accounting': 'disabled', 'payload': 'all received bytes verified; Live sequence and boundaries checked',
             'offered_load': 'unpaced, native nonblocking backpressure; no application rate cap'},
         'controls': {'blocks': args.runs, 'min_seconds': args.min_seconds, 'max_baseline_cv': args.max_baseline_cv,
@@ -165,6 +168,10 @@ def main():
             sample = json.loads(completed.stdout.splitlines()[-1])
             if sample['provider'] != provider or sample['path'] != path or sample['bytes'] != expected_bytes or sample['mode'] != args.mode or sample['encryption'] != args.encryption:
                 raise RuntimeError('benchmark result identity/byte count mismatch')
+            if sample.get('timing_protocol') != report['profile']['timing_protocol']:
+                raise RuntimeError('benchmark timing protocol mismatch')
+            if sample.get('profile_setup') != (args.profile_setup and path != 'direct'):
+                raise RuntimeError('benchmark setup path mismatch')
             sample.update(block=block, started_unix=started)
             report['samples'].append(sample); save()
             print(f"block {block} {provider} {path}: {sample['mbps']:.1f} Mbps, {sample['seconds']:.2f}s", file=sys.stderr, flush=True)

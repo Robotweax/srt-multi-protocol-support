@@ -45,18 +45,29 @@ void cancellation(Provider& provider) {
     take(p.remove(token)); take(p.wake());
     require(std::holds_alternative<Interrupted>(wait.get()), "registration/wake race");
 }
+Listener profile_listener(Provider& p, const TransportConfig& cfg) {
+    auto profile = take(p.create_profile(ProfileConfig::basic(cfg)));
+    return take(p.listen_profile(profile, {"127.0.0.1",0,0}));
+}
+Connection profile_connection(Provider& p, const TransportConfig& cfg, const Endpoint& remote) {
+    auto profile = take(p.create_profile(ProfileConfig::basic(cfg)));
+    return take(p.connect_profile(profile, remote, Endpoint{"127.0.0.1",0,0}));
+}
 struct Pair {
     Listener listener;
     Connection tx;
     std::optional<Connection> rx;
     Poller sp, cp;
-    Pair(Provider& caller, Provider& server, const TransportConfig& cfg)
-        : listener(take(server.listen({{"127.0.0.1",0,0},8,cfg,{}}))), tx(take(caller.create_connection(cfg))),
+    Pair(Provider& caller, Provider& server, const TransportConfig& cfg, bool profiles = false)
+        : listener(profiles ? profile_listener(server, cfg) : take(server.listen({{"127.0.0.1",0,0},8,cfg,{}}))),
+          tx(profiles ? profile_connection(caller, cfg, take(listener.local_endpoint())) : take(caller.create_connection(cfg))),
           sp(take(server.create_poller())), cp(take(caller.create_poller())) {
         auto ltoken = take(sp.add(listener, Interest::read));
         auto ctoken = take(cp.add(tx, Interest::write | Interest::state));
-        take(tx.bind({"127.0.0.1",0,0}));
-        require(std::holds_alternative<Pending>(tx.connect(take(listener.local_endpoint()))), "connect pending");
+        if (!profiles) {
+            take(tx.bind({"127.0.0.1",0,0}));
+            require(std::holds_alternative<Pending>(tx.connect(take(listener.local_endpoint()))), "connect pending");
+        }
         ready(sp, ltoken, Interest::read);
         auto accepted = listener.accept();
         if (auto* e=std::get_if<Error>(&accepted)) throw std::runtime_error(e->message);
@@ -67,7 +78,7 @@ struct Pair {
         take(sp.remove(ltoken)); take(cp.remove(ctoken));
     }
 };
-void transfer(Provider& caller, Provider& server, bool file, bool encrypted) {
+void transfer(Provider& caller, Provider& server, bool file, bool encrypted, bool profiles = false) {
     auto cfg = file ? file_stream_profile() : live_profile(); cfg.accounting = Accounting::payload_bytes;
     if (encrypted) {
         const std::string secret = "integration-test-secret";
@@ -76,7 +87,7 @@ void transfer(Provider& caller, Provider& server, bool file, bool encrypted) {
     }
     require(take(caller.validate(Role::caller, cfg)).issues.empty(), "valid config");
     require(take(caller.capability(Feature::polling, Role::caller, cfg)).availability == Availability::available, "polling capability");
-    Pair pair(caller, server, cfg);
+    Pair pair(caller, server, cfg, profiles);
     auto reg = take(pair.sp.add(*pair.rx, Interest::read));
     require(std::holds_alternative<Error>(pair.cp.add(*pair.rx, Interest::read)), "cross provider polling accepted");
     auto now = take(caller.now());
@@ -101,6 +112,13 @@ void transfer(Provider& caller, Provider& server, bool file, bool encrypted) {
     require(input==output, "payload mismatch");
     require(take(pair.tx.statistics()).accepted_tx_bytes==input.size(), "tx accounting");
     require(take(pair.rx->statistics()).delivered_rx_bytes==input.size(), "rx accounting");
+    auto metric = take(pair.tx.resolve_metric("native.byteSentUniqueTotal"));
+    std::array<uint32_t, 1> ids{metric.id};
+    std::array<srtmx_metric_v1, 1> metrics{}; metrics[0].struct_size = sizeof(metrics[0]);
+    require(std::holds_alternative<TelemetryCapacity>(pair.tx.native_snapshot(ids, {})), "telemetry short output");
+    auto snapshot = pair.tx.native_snapshot(ids, metrics);
+    require(std::holds_alternative<srtmx_snapshot_v1>(snapshot) && metrics[0].value.u64 >= input.size(), "facade native counters");
+    require(std::get<srtmx_snapshot_v1>(snapshot).clock_domain == now.clock_domain, "telemetry clock domain");
     // Race receive and send against abort-close on the same connection.
     std::atomic<bool> running{true}; std::atomic<unsigned> calls{0};
     std::jthread reader([&] { while (running.load()) { if(file) pair.rx->read_stream(output); else pair.rx->receive_message(output); ++calls; } });
@@ -161,6 +179,11 @@ int main(int argc,char** argv) {
         for(bool file:{false,true}) for(bool encrypted:{false,true}) {
             transfer(first,second,file,encrypted); transfer(second,first,file,encrypted);
         }
+        for(bool file:{false,true}) for(bool encrypted:{false,true}) {
+            transfer(first,second,file,encrypted,true); transfer(second,first,file,encrypted,true);
+        }
+        auto profile = take(first.create_profile(ProfileConfig::basic(live_profile())));
+        require(std::holds_alternative<Error>(second.listen_profile(profile, {"127.0.0.1",0,0})), "foreign facade profile");
         auto concurrent=std::async(std::launch::async,[&]{ transfer(first,second,true,false); });
         transfer(second,first,true,false); concurrent.get();
         auto p=take(first.create_poller()), q=take(second.create_poller());

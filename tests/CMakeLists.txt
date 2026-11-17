@@ -1,5 +1,6 @@
 find_package(Threads REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME native_audit_inventory COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/tools/check_native_audit.py")
 add_test(NAME benchmark_analysis COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_analysis_test.py")
 
 function(add_fixture name)
@@ -81,6 +82,17 @@ endif()
 
 # Functional smoke checks only: short trials intentionally cannot pass performance gates.
 if(SRTMUX_BUILD_PROVIDERS AND SRTMUX_BUILD_BENCHMARKS)
+  add_test(NAME benchmark_worker_failure COMMAND ${Python3_EXECUTABLE}
+    "${CMAKE_CURRENT_SOURCE_DIR}/benchmark_worker_test.py"
+    $<TARGET_FILE:srtmux_direct_robotweax> $<TARGET_FILE:srtmux_direct_haivision>
+    $<TARGET_FILE:srtmux_module_benchmark> $<TARGET_FILE:srtmux_facade_benchmark>
+    $<TARGET_FILE:srtmux_robotweax> $<TARGET_FILE:srtmux_haivision>)
+  set_tests_properties(benchmark_worker_failure PROPERTIES TIMEOUT 180)
+  add_test(NAME benchmark_profile_setup COMMAND ${Python3_EXECUTABLE}
+    "${PROJECT_SOURCE_DIR}/benchmarks/compare.py" --build "${PROJECT_BINARY_DIR}"
+    --profile-setup --mode file --encryption aes-128-ctr --mib 4 --runs 1
+    --warmup-mib 1 --probe-calls 0 --output "${PROJECT_BINARY_DIR}/smoke-profile-setup.json")
+  set_tests_properties(benchmark_profile_setup PROPERTIES TIMEOUT 180)
   foreach(profile IN ITEMS file_aes128 live_plain live_aes128)
     set(mode live)
     set(encryption aes-128-ctr)

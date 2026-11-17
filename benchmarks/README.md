@@ -25,8 +25,12 @@ rounded down to whole messages, and goodput uses the exact delivered count.
 Native pacing and late-packet-drop defaults are retained; the application adds no
 rate cap. The sender retries only after native WouldBlock. A Live failure cannot
 be turned into a passing sample by accepting partial delivery.
-Connection setup, idle probes and warmup are outside the timed transfer. Timing
-ends after receiver completion and sender join. SRT worker CPU is included in
+Connection setup, idle probes and warmup are outside the timed transfer. The
+`persistent-workers-barriers-v1` protocol reuses one sender thread and both payload
+buffers across warmup and measurement. A two-party barrier starts timing only
+when sender and receiver are ready; another stops it after both complete. Thread
+creation/join and buffer allocation are outside timing. Earlier reports used a
+fresh sender per phase and included its creation/join; do not pool those protocols. SRT worker CPU is included in
 whole-process CPU; application-thread CPU is reported separately.
 
 `--wait poll` waits only after WouldBlock. The direct baseline uses native
@@ -91,3 +95,40 @@ controls. These settings do not represent WAN loss, encryption key-size variants
 forced key rotation, many connections or a specified real-time source rate.
 The three `benchmark_*` profile tests in CTest are short functional smoke checks,
 not performance qualification.
+
+## Versioned profile setup
+
+Pass `--profile-setup` to construct module and facade endpoints through the
+immutable profile extension. The direct path keeps the identical native Live/File
+configuration. Setup is outside timing, profiles are released before transfer,
+and ordinary send/receive/poll operations remain unchanged. Samples record the
+actual setup path, and the runner rejects mismatches. Use this for regression
+qualification of the extension-created objects; omit it to measure original setup.
+For example:
+
+```sh
+python3 benchmarks/compare.py --build build-real --profile-setup --mode live \
+  --mib 1024 --warmup-mib 64 --probe-calls 20000 --runs 8 --output profiles-live.json
+```
+
+No implicit telemetry is sampled in these trials. Applications that continuously
+sample native statistics should separately qualify their chosen polling cadence.
+The same 2% throughput and 5% process CPU/byte limits and statistical controls apply.
+
+
+## Boundary diagnostics and failure checks
+
+Native sent-loss, receiver-loss and retransmission totals are sampled without
+clearing, immediately before and after the measured transfer. These boundary
+deltas help distinguish recovery activity from adapter CPU overhead; asynchronous
+native work can straddle the boundary. Native calls, C telemetry and C++ telemetry
+read the same vendor counters. No metric lookup or snapshot runs in a payload loop
+or inside the timed region. On POSIX, resource snapshots outside timing also record
+OS-reported context-switch and major-page-fault deltas; Windows marks these
+unavailable. Counts alone do not establish a scheduling or thermal root cause.
+
+`benchmark_worker_failure` injects a sender or receiver failure before its loop on
+all six native/module/facade/provider combinations. Every process must report a
+controlled failure and join its worker within the deadline. Qualification clears
+the injection setting explicitly. Ordinary provider close and cancellation code
+is unchanged by these benchmark controls.

@@ -1,5 +1,6 @@
 // Identical local transfer workload for direct native, C ABI and C++ facade paths.
 #include <srtmux/module.hpp>
+#include <srtmux/extensions.h>
 #ifdef SRTMUX_FACADE
 #include <srtmux/transport.hpp>
 #include <optional>
@@ -9,6 +10,9 @@
 #ifndef _WIN32
 #include <arpa/inet.h>
 #endif
+#endif
+#ifndef _WIN32
+#include <sys/resource.h>
 #endif
 #include <algorithm>
 #include <array>
@@ -22,6 +26,7 @@
 #include <windows.h>
 #endif
 #include <atomic>
+#include <barrier>
 #include <chrono>
 #include <ctime>
 #include <exception>
@@ -36,7 +41,8 @@ void require(bool value, const char* message) { if (!value) throw std::runtime_e
 bool use_poll = false;
 bool native_legacy = false;
 size_t chunk_bytes = 32768;
-bool live = false, encrypted = false;
+bool live = false, encrypted = false, profile_setup = false;
+uint64_t fail_side = 0; // Test-only failure injection before a transfer loop.
 constexpr char benchmark_secret[] = "srtmux-public-benchmark-secret"; // Test fixture, never a production credential.
 uint64_t transfer_bytes(uint64_t mib) {
     const auto bytes = mib*1024*1024;
@@ -56,6 +62,19 @@ double thread_cpu() {
 #else
     timespec t{}; require(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t) == 0, "thread CPU clock");
     return double(t.tv_sec)+double(t.tv_nsec)*1e-9;
+#endif
+}
+struct NativeDiagnostics { int64_t loss, retransmitted; };
+struct SchedulerDiagnostics {
+    int64_t voluntary = 0, involuntary = 0, major_faults = 0;
+    bool available = false;
+};
+SchedulerDiagnostics scheduler_diagnostics() {
+#ifndef _WIN32
+    rusage r{}; require(getrusage(RUSAGE_SELF, &r) == 0, "resource usage");
+    return {r.ru_nvcsw, r.ru_nivcsw, r.ru_majflt, true};
+#else
+    return {};
 #endif
 }
 template<class T> T record() { T v{}; v.struct_size = sizeof(v); return v; }
@@ -89,6 +108,10 @@ struct Backend {
             if (rx == SRT_INVALID_SOCK) rx = srt_accept(listener, nullptr, nullptr);
             std::this_thread::sleep_for(1ms);
         }
+    }
+    NativeDiagnostics diagnostics(bool sender) {
+        SRT_TRACEBSTATS stats{}; require(srt_bstats(sender?tx:rx, &stats, 0)==0, "native statistics");
+        return {sender?stats.pktSndLossTotal:stats.pktRcvLossTotal, stats.pktRetransTotal};
     }
     void verify_security() {
         if (!encrypted) return;
@@ -148,6 +171,14 @@ srtmux::TransportConfig config() {
     }
     return c;
 }
+srtmux::Listener profile_listener(srtmux::Provider& provider) {
+    auto p = unwrap(provider.create_profile(srtmux::ProfileConfig::basic(config())));
+    return unwrap(provider.listen_profile(p, {"127.0.0.1",0,0}));
+}
+srtmux::Connection profile_connect(srtmux::Provider& provider, const srtmux::Endpoint& endpoint) {
+    auto p = unwrap(provider.create_profile(srtmux::ProfileConfig::basic(config())));
+    return unwrap(provider.connect_profile(p, endpoint));
+}
 struct Backend {
     srtmux::TransportRuntime runtime = unwrap(srtmux::TransportRuntime::create());
     srtmux::Provider provider;
@@ -157,10 +188,10 @@ struct Backend {
     std::optional<srtmux::Poller> tp, rp;
     std::string name, fingerprint;
     explicit Backend(char** args) : provider(unwrap(runtime.load({args[2], args[3], args[4], {}}))),
-        listener(unwrap(provider.listen({{"127.0.0.1",0,0},8,config(),{}}))),
-        tx(unwrap(provider.create_connection(config()))),
+        listener(profile_setup ? profile_listener(provider) : unwrap(provider.listen({{"127.0.0.1",0,0},8,config(),{}}))),
+        tx(profile_setup ? profile_connect(provider, unwrap(listener.local_endpoint())) : unwrap(provider.create_connection(config()))),
         name(provider.info().implementation), fingerprint(provider.info().build_fingerprint) {
-        require(std::holds_alternative<srtmux::Pending>(tx.connect(unwrap(listener.local_endpoint()))), "connect");
+        if (!profile_setup) require(std::holds_alternative<srtmux::Pending>(tx.connect(unwrap(listener.local_endpoint()))), "connect");
         auto until=Clock::now()+5s; bool connected=false;
         while(!rx || !connected) {
             require(Clock::now()<until,"connect timeout");
@@ -173,6 +204,15 @@ struct Backend {
             std::this_thread::sleep_for(1ms);
         }
         unwrap(rx->info());
+    }
+    NativeDiagnostics diagnostics(bool sender) {
+        auto& c=sender?tx:*rx;
+        auto loss=unwrap(c.resolve_metric(sender?"native.pktSndLossTotal":"native.pktRcvLossTotal"));
+        auto retransmitted=unwrap(c.resolve_metric("native.pktRetransTotal"));
+        std::array<uint32_t,2> ids{loss.id,retransmitted.id};
+        std::array<srtmx_metric_v1,2> values{record<srtmx_metric_v1>(),record<srtmx_metric_v1>()};
+        require(std::holds_alternative<srtmx_snapshot_v1>(c.native_snapshot(ids,values)), "facade statistics");
+        return {values[0].value.i64,values[1].value.i64};
     }
     void verify_security() {
         if (!encrypted) return;
@@ -236,10 +276,24 @@ struct Backend {
         }
         auto lc = record<srtm_listener_config_v1>(); lc.transport = c; lc.backlog = 8;
         lc.local.family = SRTM_AF_IPV4; lc.local.address[0] = 127; lc.local.address[3] = 1;
-        require(api.listener_create(runtime, &lc, &listener, &error) == SRTM_OK, error.message);
-        srtm_endpoint ep{}; require(api.listener_endpoint(runtime, listener, &ep, &error) == SRTM_OK, error.message);
-        require(api.connection_create(runtime, &c, &tx, &error) == SRTM_OK, error.message);
-        require(api.connection_connect(runtime, tx, &ep, &error) == SRTM_PENDING, error.message);
+        if (profile_setup) {
+            const srtm_extension_header_v1* table = nullptr;
+            require(api.query_extension(runtime, {SRTMX_PROFILES,sizeof(SRTMX_PROFILES)-1},1,0,&table,&error)==SRTM_OK,error.message);
+            auto* ext = reinterpret_cast<const srtmx_profiles_api_v1*>(table);
+            auto p = record<srtmx_profile_v1>(); p.mode=c.mode; p.cipher=c.encryption; p.base=c; p.base.encryption=0;
+            p.max_message_bytes=c.payload_bytes; p.fec=record<srtmx_fec_v1>(); p.tuning=record<srtmx_tuning_v1>(); p.tuning.max_bandwidth_bytes_s=-1;
+            srtm_handle profile=0; require(ext->create_profile(runtime,&p,&profile,&error)==SRTM_OK,error.message);
+            auto input=record<srtmx_listener_v1>(); input.local=lc.local; input.backlog=8; input.allowed_profiles=&profile; input.profile_count=1;
+            auto out=record<srtmx_object_v1>(); require(ext->listen(runtime,&input,&out,&error)==SRTM_OK,error.message); listener=out.handle;
+            srtm_endpoint ep{}; require(api.listener_endpoint(runtime,listener,&ep,&error)==SRTM_OK,error.message);
+            require(ext->connect(runtime,profile,nullptr,&ep,0,&out,&error)==SRTM_PENDING,error.message); tx=out.handle;
+            require(ext->release_profile(runtime,profile,&error)==SRTM_OK,error.message);
+        } else {
+            require(api.listener_create(runtime, &lc, &listener, &error) == SRTM_OK, error.message);
+            srtm_endpoint ep{}; require(api.listener_endpoint(runtime, listener, &ep, &error) == SRTM_OK, error.message);
+            require(api.connection_create(runtime, &c, &tx, &error) == SRTM_OK, error.message);
+            require(api.connection_connect(runtime, tx, &ep, &error) == SRTM_PENDING, error.message);
+        }
         auto until = Clock::now() + 5s;
         bool connected = false;
         while (!rx || !connected) {
@@ -251,6 +305,23 @@ struct Backend {
         }
         auto info = record<srtm_connection_info_v1>(); info.terminal_error = record<srtm_error_v1>();
         require(api.connection_info(runtime, rx, &info, &error) == SRTM_OK, error.message);
+    }
+    NativeDiagnostics diagnostics(bool sender) {
+        auto error=record<srtm_error_v1>(); const srtm_extension_header_v1* header=nullptr;
+        require(api.query_extension(runtime,{SRTMX_TELEMETRY,sizeof(SRTMX_TELEMETRY)-1},1,0,&header,&error)==SRTM_OK,error.message);
+        require(header && header->struct_size>=sizeof(srtmx_telemetry_api_v1),"telemetry ABI");
+        auto* telemetry=reinterpret_cast<const srtmx_telemetry_api_v1*>(header);
+        const char* names[]={sender?"native.pktSndLossTotal":"native.pktRcvLossTotal","native.pktRetransTotal"};
+        std::array<uint32_t,2> ids{};
+        for (size_t i=0;i<ids.size();++i) {
+            auto info=record<srtmx_metric_info_v1>();
+            require(telemetry->resolve(runtime,{names[i],std::strlen(names[i])},&info,&error)==SRTM_OK,error.message); ids[i]=info.id;
+        }
+        auto object=record<srtmx_object_v1>(); object.kind=SRTMX_KIND_CONNECTION; object.handle=sender?tx:rx;
+        std::array<srtmx_metric_v1,2> values{record<srtmx_metric_v1>(),record<srtmx_metric_v1>()};
+        auto snapshot=record<srtmx_snapshot_v1>(); uint32_t required=0;
+        require(telemetry->snapshot(runtime,object,ids.data(),2,values.data(),sizeof(values[0]),2,&required,&snapshot,&error)==SRTM_OK,error.message);
+        return {values[0].value.i64,values[1].value.i64};
     }
     void verify_security() {
         if (!encrypted) return;
@@ -295,50 +366,98 @@ struct Backend {
 };
 #endif
 struct Counts { uint64_t calls=0, would_block=0; double cpu=0; };
-struct Sample { double seconds, cpu_seconds; Counts tx, rx; };
-Sample transfer(Backend& backend, uint64_t bytes) {
-    std::vector<uint8_t> input(chunk_bytes, 0x5a), output(chunk_bytes);
-    Counts tx, rx;
-    std::atomic<bool> cancel{false}; std::exception_ptr sender_error;
-    auto start = Clock::now(); auto cpu = std::clock();
-    std::jthread sender([&] {
-        try {
-            uint64_t sent = 0; Counts counters; auto cpu_start=thread_cpu();
-            while (sent < bytes && !cancel.load(std::memory_order_relaxed)) {
-                if (live) { const uint64_t sequence=sent/chunk_bytes; std::memcpy(input.data(),&sequence,sizeof(sequence)); }
-                int n = backend.send(input.data(), static_cast<int>(std::min<uint64_t>(input.size(), bytes-sent)));
-                ++counters.calls;
-                if (!n) { ++counters.would_block; require(Clock::now()-start < 180s, "sender deadline");
-                    if(use_poll) backend.wait(true); else std::this_thread::yield(); }
-                require(!live || n==0 || n==static_cast<int>(chunk_bytes),"partial Live message send");
-                sent += static_cast<uint64_t>(n);
-            }
-            counters.cpu=thread_cpu()-cpu_start; tx=counters;
-        } catch (...) { sender_error = std::current_exception(); cancel.store(true); }
-    });
-    try {
-        uint64_t received = 0; auto cpu_start=thread_cpu();
-        while (received < bytes && !cancel.load(std::memory_order_relaxed)) {
-            int n = backend.receive(output.data(), static_cast<int>(std::min<uint64_t>(output.size(), bytes-received)));
-            ++rx.calls;
-            if (!n) { ++rx.would_block; require(Clock::now()-start < 180s, "receiver deadline");
-                if(use_poll) backend.wait(false); else std::this_thread::yield(); }
-            else {
-                size_t header=0;
-                if (live) {
-                    require(n==static_cast<int>(chunk_bytes),"Live message boundary mismatch");
-                    uint64_t sequence; std::memcpy(&sequence,output.data(),sizeof(sequence));
-                    require(sequence==received/chunk_bytes,"Live message lost, reordered or duplicated"); header=sizeof(sequence);
-                }
-                require(std::all_of(output.begin()+static_cast<ptrdiff_t>(header), output.begin()+n, [](uint8_t b) { return b == 0x5a; }), "payload corruption");
-            }
-            received += static_cast<uint64_t>(n);
+struct Sample { double seconds, cpu_seconds; Counts tx, rx; SchedulerDiagnostics scheduler; };
+// A single application sender serves warmup and measurement. Neither thread
+// creation/join nor buffer allocation is included in the timed data path.
+class Transfer {
+    Backend& backend;
+    std::vector<uint8_t> input, output;
+    uint64_t bytes = 0;
+    bool stopping = false; // Published by the start barrier, never read earlier.
+    std::atomic<bool> cancel{false};
+    std::exception_ptr sender_error;
+    Clock::time_point start;
+    std::clock_t cpu_start{};
+    Sample sample{};
+    struct Start {
+        Transfer* owner;
+        void operator()() noexcept {
+            if (!owner->stopping) { owner->start=Clock::now(); owner->cpu_start=std::clock(); }
         }
-        require(received==bytes,"incomplete delivery"); rx.cpu=thread_cpu()-cpu_start;
-    } catch (...) { cancel.store(true); sender.join(); throw; }
-    sender.join(); if (sender_error) std::rethrow_exception(sender_error);
-    return {std::chrono::duration<double>(Clock::now()-start).count(), double(std::clock()-cpu)/CLOCKS_PER_SEC, tx, rx};
-}
+    };
+    struct Finish {
+        Transfer* owner;
+        void operator()() noexcept {
+            owner->sample.seconds=std::chrono::duration<double>(Clock::now()-owner->start).count();
+            owner->sample.cpu_seconds=double(std::clock()-owner->cpu_start)/CLOCKS_PER_SEC;
+        }
+    };
+    std::barrier<Start> begin{2,Start{this}};
+    std::barrier<Finish> end{2,Finish{this}};
+    std::jthread sender;
+    void send_loop() noexcept {
+        while (true) {
+            begin.arrive_and_wait();
+            if (stopping) return;
+            try {
+                require(fail_side!=1,"injected sender failure");
+                uint64_t sent=0; Counts counters; auto thread_start=thread_cpu();
+                while (sent<bytes && !cancel.load(std::memory_order_relaxed)) {
+                    if (live) { const uint64_t sequence=sent/chunk_bytes; std::memcpy(input.data(),&sequence,sizeof(sequence)); }
+                    int n=backend.send(input.data(),static_cast<int>(std::min<uint64_t>(input.size(),bytes-sent)));
+                    ++counters.calls;
+                    if (!n) {
+                        ++counters.would_block; require(Clock::now()-start<180s,"sender deadline");
+                        if (use_poll) backend.wait(true); else std::this_thread::yield();
+                    }
+                    require(!live || n==0 || n==static_cast<int>(chunk_bytes),"partial Live message send");
+                    sent+=static_cast<uint64_t>(n);
+                }
+                counters.cpu=thread_cpu()-thread_start; sample.tx=counters;
+            } catch (...) { sender_error=std::current_exception(); cancel.store(true); }
+            end.arrive_and_wait();
+        }
+    }
+public:
+    explicit Transfer(Backend& b) : backend(b), input(chunk_bytes,0x5a), output(chunk_bytes), sender([this] { send_loop(); }) {}
+    ~Transfer() { stopping=true; begin.arrive_and_wait(); } // jthread joins before barriers are destroyed.
+    Sample run(uint64_t total) {
+        bytes=total; sample={}; sender_error=nullptr; cancel=false;
+        auto scheduler_before=scheduler_diagnostics();
+        begin.arrive_and_wait();
+        std::exception_ptr receiver_error;
+        try {
+            require(fail_side!=2,"injected receiver failure");
+            uint64_t received=0; auto thread_start=thread_cpu();
+            while (received<bytes && !cancel.load(std::memory_order_relaxed)) {
+                int n=backend.receive(output.data(),static_cast<int>(std::min<uint64_t>(output.size(),bytes-received)));
+                ++sample.rx.calls;
+                if (!n) {
+                    ++sample.rx.would_block; require(Clock::now()-start<180s,"receiver deadline");
+                    if (use_poll) backend.wait(false); else std::this_thread::yield();
+                } else {
+                    size_t header=0;
+                    if (live) {
+                        require(n==static_cast<int>(chunk_bytes),"Live message boundary mismatch");
+                        uint64_t sequence; std::memcpy(&sequence,output.data(),sizeof(sequence));
+                        require(sequence==received/chunk_bytes,"Live message lost, reordered or duplicated"); header=sizeof(sequence);
+                    }
+                    require(std::all_of(output.begin()+static_cast<ptrdiff_t>(header),output.begin()+n,[](uint8_t b) { return b==0x5a; }),"payload corruption");
+                }
+                received+=static_cast<uint64_t>(n);
+            }
+            require(received==bytes,"incomplete delivery"); sample.rx.cpu=thread_cpu()-thread_start;
+        } catch (...) { receiver_error=std::current_exception(); cancel.store(true); }
+        end.arrive_and_wait();
+        auto scheduler=scheduler_diagnostics();
+        scheduler.voluntary-=scheduler_before.voluntary; scheduler.involuntary-=scheduler_before.involuntary;
+        scheduler.major_faults-=scheduler_before.major_faults; sample.scheduler=scheduler;
+        if (sender_error) std::rethrow_exception(sender_error);
+        if (receiver_error) std::rethrow_exception(receiver_error);
+        return sample;
+    }
+};
+
 int main(int argc, char** argv) {
     try {
 #ifdef SRTMUX_DIRECT
@@ -349,6 +468,8 @@ int main(int argc, char** argv) {
         require(argc == 5, "Usage: module_benchmark MiB module implementation release"); const char* path = "module";
 #endif
         const auto mib = std::stoull(argv[1]); require(mib > 0 && mib <= 4096, "MiB must be 1..4096");
+        fail_side=setting("SRTMUX_BENCH_FAIL_SIDE",0,2);
+        profile_setup = setting("SRTMUX_BENCH_PROFILE_SETUP",0,1)!=0;
         use_poll = setting("SRTMUX_BENCH_POLL",0,1)!=0;
         native_legacy = setting("SRTMUX_BENCH_NATIVE_LEGACY",0,1)!=0;
         live=setting("SRTMUX_BENCH_LIVE",0,1)!=0; encrypted=setting("SRTMUX_BENCH_ENCRYPTED",0,1)!=0;
@@ -363,20 +484,32 @@ int main(int argc, char** argv) {
         auto probe_start=thread_cpu();
         for(uint64_t i=0;i<probes;++i) require(backend.receive(probe_buffer.data(),static_cast<int>(chunk_bytes))==0,"probe not idle");
         double probe_cpu=thread_cpu()-probe_start;
-        if(warmup) transfer(backend,transfer_bytes(warmup));
+        Transfer transfer(backend);
+        if(warmup) transfer.run(transfer_bytes(warmup));
         backend.verify_security();
-        const auto sample = transfer(backend, bytes);
+        const auto tx_before=backend.diagnostics(true), rx_before=backend.diagnostics(false);
+        const auto sample = transfer.run(bytes);
+        const auto tx_after=backend.diagnostics(true), rx_after=backend.diagnostics(false);
         backend.verify_security();
         std::cout << std::setprecision(12) << "{\"provider\":\"" << backend.name << "\",\"path\":\"" << path << "\",\"bytes\":" << bytes
             << ",\"build_fingerprint\":\"" << backend.fingerprint << "\",\"seconds\":" << sample.seconds << ",\"cpu_seconds\":" << sample.cpu_seconds
             << ",\"wait\":\"" << (use_poll?"poll":"yield") << "\",\"chunk_bytes\":" << chunk_bytes
             << ",\"mode\":\"" << (live?"live":"file") << "\",\"encryption\":\"" << (encrypted?"aes-128-ctr":"none") << "\""
+            << ",\"timing_protocol\":\"persistent-workers-barriers-v1\""
+            << ",\"profile_setup\":" << ((profile_setup && std::strcmp(path,"direct")!=0)?"true":"false")
             << ",\"messages\":" << (live?bytes/chunk_bytes:0)
             << ",\"warmup_mib\":" << warmup << ",\"tx_calls\":" << sample.tx.calls << ",\"rx_calls\":" << sample.rx.calls
             << ",\"tx_would_block\":" << sample.tx.would_block << ",\"rx_would_block\":" << sample.rx.would_block
             << ",\"application_cpu_seconds\":" << sample.tx.cpu+sample.rx.cpu
             << ",\"sender_cpu_seconds\":" << sample.tx.cpu << ",\"receiver_cpu_seconds\":" << sample.rx.cpu
             << ",\"probe_calls\":" << probes << ",\"probe_cpu_seconds\":" << probe_cpu
+            << ",\"tx_loss_packets\":" << tx_after.loss-tx_before.loss
+            << ",\"tx_retransmitted_packets\":" << tx_after.retransmitted-tx_before.retransmitted
+            << ",\"rx_loss_packets\":" << rx_after.loss-rx_before.loss
+            << ",\"scheduler_diagnostics_available\":" << (sample.scheduler.available?"true":"false")
+            << ",\"voluntary_context_switches\":" << sample.scheduler.voluntary
+            << ",\"involuntary_context_switches\":" << sample.scheduler.involuntary
+            << ",\"major_page_faults\":" << sample.scheduler.major_faults
             << ",\"mbps\":" << double(bytes)*8/sample.seconds/1e6 << "}\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

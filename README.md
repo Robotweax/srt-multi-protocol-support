@@ -31,6 +31,18 @@ File/IPv4 gates after correcting a Haivision polling regression; see the
 also pass both gates for both providers and API paths: IPv4 loopback, 1,316-byte
 Live messages, and AES-128-CTR. Broader deployment profiles remain unqualified.
 
+The [complete native feature audit and extension design](docs/design/extensions/README.md)
+records the native feature gaps and versioned design. The first stage now provides
+[immutable Live/File profiles and native telemetry](providers/EXTENSIONS.md) in both
+providers and the C++ facade; later extension features remain unsupported.
+The [initial validation report](docs/validation/2026-11-16-profiles-telemetry.md)
+records 17/20 passing performance comparisons. The [File investigation and fixed
+qualification campaign](docs/validation/2026-11-17-file-qualification.md) adds
+15/15 Release and sanitizer checks and 144 verified transfers after correcting
+benchmark timing. All eight new comparisons remain inconclusive because of native
+variability or confidence bounds. Full performance qualification remains incomplete;
+production I/O and close/cancellation protections are unchanged.
+
 ## Build and check
 
 Requirements: CMake 3.20+, a C++20 compiler, and Python 3 for the export test.

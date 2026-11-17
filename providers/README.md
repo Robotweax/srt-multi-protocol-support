@@ -191,3 +191,10 @@ payload delivery, plus negotiated encryption before and after each measured run.
 These local measurements do not qualify other Live payloads, other key sizes,
 full duplex, many connections, lossy networks or other hosts. Do not trade
 integrity, concurrency safety or delivery latency for a passing throughput number.
+
+## Versioned setup and native statistics
+
+Both modules now implement the Live/File subset of `srtmux.profiles` 1.0 and the
+82-field `srtmux.telemetry` 1.0 catalogue. See [supported extension contracts](EXTENSIONS.md)
+for immutable ownership, tuning defaults, facade usage, and explicit unsupported
+features. Group, Control/Sensor and experimental tables remain unavailable.

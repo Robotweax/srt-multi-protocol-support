@@ -1,5 +1,6 @@
 // Compiled separately against each vendor. No vendor symbol is exported.
 #include <srtmux/provider_abi.h>
+#include <srtmux/extensions.h>
 #include <srt.h>
 #include <array>
 #include <atomic>
@@ -149,6 +150,14 @@ struct Entry {
 using Page = std::array<Entry, page_size>;
 std::atomic<uint32_t> generation_source{1};
 }
+struct ProfileState {
+    srtmx_profile_v1 config{};
+    std::vector<uint8_t> stream, secret;
+    ~ProfileState() {
+        volatile uint8_t* p = secret.data();
+        for (size_t i = 0; i < secret.size(); ++i) p[i] = 0;
+    }
+};
 struct srtm_runtime {
     std::array<std::atomic<Page*>, page_count> pages{};
     std::mutex control;
@@ -156,6 +165,7 @@ struct srtm_runtime {
     uint32_t next_slot = 0, objects = 0;
     std::atomic<bool> stopping{false};
     std::mutex shutdown;
+    std::unordered_map<srtm_handle, std::shared_ptr<const ProfileState>> profiles;
     ~srtm_runtime() { for (auto& p : pages) delete p.load(); }
 };
 namespace {
@@ -416,7 +426,7 @@ srtm_status runtime_destroy(srtm_runtime* r, srtm_error_v1* d) {
     clear(d); std::lock_guard lock(startup_mutex);
     if (!runtime_ok(r)) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid runtime", d);
     { std::lock_guard control_lock(r->control);
-      if (!r->stopping || r->objects) return error(SRTM_ERR_BUSY, "Shutdown and release objects first", d); }
+      if (!r->stopping || r->objects || !r->profiles.empty()) return error(SRTM_ERR_BUSY, "Shutdown and release objects first", d); }
     if (srt_cleanup() != 0) return native_error(d);
     active.store(nullptr); delete r; return SRTM_OK;
 }
@@ -667,10 +677,8 @@ srtm_status release(srtm_runtime* r, srtm_handle h, srtm_error_v1* d) {
     return SRTM_OK;
 }
 #include "polling.hpp"
-srtm_status extension(srtm_runtime*, srtm_text, uint32_t, uint32_t, const srtm_extension_header_v1** out, srtm_error_v1* d) {
-    if (out) *out = nullptr;
-    return error(SRTM_ERR_UNSUPPORTED, "No extensions in the basic adapter", d);
-}
+srtm_status boundary_error(uint32_t category, const char* message, srtm_error_v1* d) { return error(category, message, d); }
+srtm_status boundary_error(uint32_t category, const char* message, srtm_io_error_v1* d) { return error(category, message, nullptr, d); }
 // Cold-path allocation failures and unexpected vendor exceptions never cross C.
 template<class T> void compact_exception(T, uint32_t) {}
 void compact_exception(srtm_io_error_v1* io, uint32_t category) { error(category, "Provider exception", nullptr, io); }
@@ -680,10 +688,10 @@ template<class... Args, srtm_status (*Fn)(Args...)> struct Guard<Fn> {
         try { return Fn(args...); }
         catch (const std::bad_alloc&) {
             (compact_exception(args, SRTM_ERR_RESOURCE), ...);
-            return error(SRTM_ERR_RESOURCE, "Provider allocation failed", std::get<sizeof...(Args)-1>(std::tuple{args...}));
+            return boundary_error(SRTM_ERR_RESOURCE, "Provider allocation failed", std::get<sizeof...(Args)-1>(std::tuple{args...}));
         } catch (...) {
             (compact_exception(args, SRTM_ERR_INTERNAL), ...);
-            return error(SRTM_ERR_INTERNAL, "Provider exception", std::get<sizeof...(Args)-1>(std::tuple{args...}));
+            return boundary_error(SRTM_ERR_INTERNAL, "Provider exception", std::get<sizeof...(Args)-1>(std::tuple{args...}));
         }
     }
 };
@@ -691,9 +699,10 @@ template<class> struct Unsupported;
 template<class... Args> struct Unsupported<srtm_status (SRTM_CALL *)(Args...)> {
     static srtm_status SRTM_CALL call(Args... args) {
         (compact_exception(args, SRTM_ERR_UNSUPPORTED), ...);
-        return error(SRTM_ERR_UNSUPPORTED, "Operation not implemented in basic adapter", std::get<sizeof...(Args)-1>(std::tuple{args...}));
+        return boundary_error(SRTM_ERR_UNSUPPORTED, "Operation not implemented in basic adapter", std::get<sizeof...(Args)-1>(std::tuple{args...}));
     }
 };
+#include "extensions.hpp"
 const srtm_provider_api_v1 table = [] {
     srtm_provider_api_v1 a{}; a.struct_size = sizeof(a); a.abi_major = SRTM_ABI_MAJOR; a.abi_minor = SRTM_ABI_MINOR;
 #define SET(field, fn) a.field = &Guard<fn>::call

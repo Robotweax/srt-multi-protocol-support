@@ -1,0 +1,194 @@
+# Native symbol and option ledger
+
+Historical wrapper dispositions at `8f3579c`; current implemented profile/telemetry
+support is documented in [providers/EXTENSIONS.md](../../../providers/EXTENSIONS.md).
+
+Generated audit ledger; semantic interpretation and source links are in [the feature audit](AUDIT.md).
+
+Header presence includes optional builds; it does not mean this wrapper exposes the operation.
+
+| Symbol | RW header | HV header | Family | Wrapper disposition |
+| --- | --- | --- | --- | --- |
+| `robotweax_srt_connect_group_acquire` | yes | no | udp_adoption | unexposed |
+| `robotweax_srt_error_string` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_group_path_data_v1` | yes | no | groups | unexposed |
+| `robotweax_srt_group_send_state_v1` | yes | no | groups | unexposed |
+| `robotweax_srt_inspect_packet` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_options_create` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_options_destroy` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_options_get` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_options_set` | yes | no | toolkit | intentionally_outside_transport_core |
+| `robotweax_srt_rtt_data_v1` | yes | no | telemetry | unexposed |
+| `robotweax_srt_standby_rtt_data_v1` | yes | no | telemetry | unexposed |
+| `srt_accept` | yes | yes | core | partial_ordinary_only |
+| `srt_accept_bond` | yes | yes | admission | unexposed |
+| `srt_addlogfa` | yes | yes | logging | unexposed |
+| `srt_bind` | yes | yes | core | partial_ordinary_only |
+| `srt_bind_acquire` | yes | yes | udp_adoption | unexposed |
+| `srt_bistats` | yes | yes | telemetry | unexposed |
+| `srt_bstats` | yes | yes | telemetry | unexposed |
+| `srt_cleanup` | yes | yes | core | internal_mapping |
+| `srt_clearlasterror` | yes | yes | diagnostics | unexposed |
+| `srt_clock_type` | yes | yes | telemetry | replaced_by_provider_metadata |
+| `srt_close` | yes | yes | core | partial_abort_only |
+| `srt_config_add` | yes | yes | groups | unexposed |
+| `srt_connect` | yes | yes | core | partial_ordinary_only |
+| `srt_connect_bind` | yes | yes | tuning | unexposed |
+| `srt_connect_callback` | yes | yes | admission | unexposed |
+| `srt_connect_debug` | yes | yes | tuning | unexposed |
+| `srt_connect_group` | yes | yes | groups | unexposed |
+| `srt_connection_time` | yes | yes | telemetry | unexposed |
+| `srt_create_config` | yes | yes | groups | unexposed |
+| `srt_create_group` | yes | yes | groups | unexposed |
+| `srt_create_socket` | yes | yes | core | internal_mapping |
+| `srt_delete_config` | yes | yes | groups | unexposed |
+| `srt_dellogfa` | yes | yes | logging | unexposed |
+| `srt_epoll_add_ssock` | yes | yes | polling | internal_mapping |
+| `srt_epoll_add_usock` | yes | yes | polling | internal_mapping |
+| `srt_epoll_clear_usocks` | yes | yes | polling | unexposed |
+| `srt_epoll_create` | yes | yes | polling | internal_mapping |
+| `srt_epoll_release` | yes | yes | polling | internal_mapping |
+| `srt_epoll_remove_ssock` | yes | yes | polling | unexposed |
+| `srt_epoll_remove_usock` | yes | yes | polling | internal_mapping |
+| `srt_epoll_set` | yes | yes | polling | unexposed |
+| `srt_epoll_update_ssock` | yes | yes | polling | unexposed |
+| `srt_epoll_update_usock` | yes | yes | polling | internal_mapping |
+| `srt_epoll_uwait` | yes | yes | polling | internal_mapping |
+| `srt_epoll_wait` | yes | yes | polling | internal_mapping |
+| `srt_getlasterror` | yes | yes | diagnostics | internal_mapping |
+| `srt_getlasterror_str` | yes | yes | diagnostics | internal_mapping |
+| `srt_getpeername` | yes | yes | core | internal_mapping |
+| `srt_getrejectreason` | yes | yes | diagnostics | internal_mapping |
+| `srt_getsndbuffer` | yes | yes | telemetry | unexposed |
+| `srt_getsockflag` | yes | yes | tuning | partial_typed_subset |
+| `srt_getsockname` | yes | yes | core | internal_mapping |
+| `srt_getsockopt` | yes | yes | tuning | unexposed |
+| `srt_getsockstate` | yes | yes | core | internal_mapping |
+| `srt_getversion` | yes | yes | diagnostics | replaced_by_provider_metadata |
+| `srt_group_data` | yes | yes | groups | unexposed |
+| `srt_groupof` | yes | yes | groups | unexposed |
+| `srt_listen` | yes | yes | core | internal_mapping |
+| `srt_listen_callback` | yes | yes | admission | unexposed |
+| `srt_msgctrl_default` | yes | yes | io | internal_mapping |
+| `srt_msgctrl_init` | yes | yes | io | unexposed |
+| `srt_prepare_endpoint` | yes | yes | groups | unexposed |
+| `srt_recv` | yes | yes | io | internal_mapping |
+| `srt_recvfile` | yes | yes | io | intentionally_outside_transport_core |
+| `srt_recvmsg` | yes | yes | io | unexposed |
+| `srt_recvmsg2` | yes | yes | io | internal_mapping |
+| `srt_rejectreason_msg` | yes | yes | diagnostics | unexposed |
+| `srt_rejectreason_str` | yes | yes | diagnostics | unexposed |
+| `srt_rendezvous` | yes | yes | rendezvous | unexposed |
+| `srt_resetlogfa` | yes | yes | logging | unexposed |
+| `srt_send` | yes | yes | io | internal_mapping |
+| `srt_sendfile` | yes | yes | io | intentionally_outside_transport_core |
+| `srt_sendmsg` | yes | yes | io | unexposed |
+| `srt_sendmsg2` | yes | yes | io | internal_mapping |
+| `srt_setlogflags` | yes | yes | logging | unexposed |
+| `srt_setloghandler` | yes | yes | logging | unexposed |
+| `srt_setloglevel` | yes | yes | logging | unexposed |
+| `srt_setrejectreason` | yes | yes | admission | unexposed |
+| `srt_setsockflag` | yes | yes | tuning | partial_typed_subset |
+| `srt_setsockopt` | yes | yes | tuning | unexposed |
+| `srt_socket` | yes | yes | core | unexposed |
+| `srt_startup` | yes | yes | core | internal_mapping |
+| `srt_strerror` | yes | yes | diagnostics | unexposed |
+| `srt_time_now` | yes | yes | diagnostics | internal_mapping |
+
+`srt_bind_peerof` is an unexposed inline alias of UDP adoption. Haivision’s
+`srt_setlogstream` appears only in a commented-out proposal in the pinned header;
+it is not counted as an API declaration.
+
+| Socket option | RW header | HV header | Family | Wrapper disposition |
+| --- | --- | --- | --- | --- |
+| `SRTO_BINDTODEVICE` | yes | yes | tuning | unexposed |
+| `SRTO_CONGESTION` | yes | yes | profiles | unexposed |
+| `SRTO_CONNTIMEO` | yes | yes | core | typed_config |
+| `SRTO_CRYPTOMODE` | yes | yes | crypto | unexposed |
+| `SRTO_DRIFTTRACER` | yes | yes | tuning | unexposed |
+| `SRTO_ENFORCEDENCRYPTION` | yes | yes | core | fixed_nonblocking_abort_enforced |
+| `SRTO_EVENT` | yes | yes | telemetry | unexposed |
+| `SRTO_FC` | yes | yes | tuning | unexposed |
+| `SRTO_GROUPCONNECT` | yes | yes | groups | unexposed |
+| `SRTO_GROUPMINSTABLETIMEO` | yes | yes | groups | unexposed |
+| `SRTO_GROUPTYPE` | yes | yes | groups | unexposed |
+| `SRTO_INPUTBW` | yes | yes | tuning | unexposed |
+| `SRTO_IPTOS` | yes | yes | tuning | unexposed |
+| `SRTO_IPTTL` | yes | yes | tuning | unexposed |
+| `SRTO_IPV6ONLY` | yes | yes | tuning | unexposed |
+| `SRTO_ISN` | yes | yes | telemetry | unexposed |
+| `SRTO_KMPREANNOUNCE` | yes | yes | crypto | unexposed |
+| `SRTO_KMREFRESHRATE` | yes | yes | crypto | unexposed |
+| `SRTO_KMSTATE` | yes | yes | telemetry | unexposed |
+| `SRTO_LATENCY` | yes | yes | tuning | unexposed |
+| `SRTO_LINGER` | yes | yes | core | fixed_nonblocking_abort_enforced |
+| `SRTO_LOSSMAXTTL` | yes | yes | tuning | unexposed |
+| `SRTO_MAXBW` | yes | yes | tuning | unexposed |
+| `SRTO_MAXREXMITBW` | yes | yes | tuning | unexposed |
+| `SRTO_MESSAGEAPI` | yes | yes | profiles | partial_live_file_only |
+| `SRTO_MININPUTBW` | yes | yes | tuning | unexposed |
+| `SRTO_MINVERSION` | yes | yes | tuning | unexposed |
+| `SRTO_MSS` | yes | yes | core | typed_config |
+| `SRTO_NAKREPORT` | yes | yes | tuning | unexposed |
+| `SRTO_OHEADBW` | yes | yes | tuning | unexposed |
+| `SRTO_PACKETFILTER` | yes | yes | recovery | unexposed |
+| `SRTO_PASSPHRASE` | yes | yes | core | typed_config |
+| `SRTO_PAYLOADSIZE` | yes | yes | profiles | partial_live_file_only |
+| `SRTO_PBKEYLEN` | yes | yes | core | typed_config |
+| `SRTO_PEERIDLETIMEO` | yes | yes | core | typed_config |
+| `SRTO_PEERLATENCY` | yes | yes | core | typed_config |
+| `SRTO_PEERVERSION` | yes | yes | telemetry | unexposed |
+| `SRTO_RCVBUF` | yes | yes | core | typed_config |
+| `SRTO_RCVDATA` | yes | yes | telemetry | unexposed |
+| `SRTO_RCVKMSTATE` | yes | yes | telemetry | partial_info_mapping |
+| `SRTO_RCVLATENCY` | yes | yes | core | typed_config |
+| `SRTO_RCVSYN` | yes | yes | core | fixed_nonblocking_abort_enforced |
+| `SRTO_RCVTIMEO` | yes | yes | tuning | unexposed |
+| `SRTO_RENDEZVOUS` | yes | yes | rendezvous | unexposed |
+| `SRTO_RETRANSMITALGO` | yes | yes | tuning | unexposed |
+| `SRTO_REUSEADDR` | yes | yes | tuning | unexposed |
+| `SRTO_ROBOTWEAX_ACP1_ACTIVE` | yes | no | experimental | unexposed |
+| `SRTO_ROBOTWEAX_ACP1_REQUIRED` | yes | no | experimental | unexposed |
+| `SRTO_ROBOTWEAX_CRYPTO_BACKEND` | yes | no | identity | unexposed |
+| `SRTO_ROBOTWEAX_FECPOLICY` | yes | no | recovery | unexposed |
+| `SRTO_ROBOTWEAX_GROUPDOMAIN` | yes | no | admission | unexposed |
+| `SRTO_ROBOTWEAX_IDENTITY_ADVERTISEMENT` | yes | no | identity | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_COORDINATED` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_GROUP` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_IFACE` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_INDEPENDENT` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_REXMIT_THRESHOLD` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_SOURCE` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_STATS` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MCAST_TTL` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_MULTICAST` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_PATHID` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_PATHID_POLICY` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_PATHID_REQUIRED` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_PEERGROUP` | yes | no | admission | unexposed |
+| `SRTO_ROBOTWEAX_PEER_HANDSHAKE` | yes | no | admission | unexposed |
+| `SRTO_ROBOTWEAX_PEER_IDENTITY` | yes | no | identity | unexposed |
+| `SRTO_ROBOTWEAX_SESSIONAUTH` | yes | no | crypto | unexposed |
+| `SRTO_ROBOTWEAX_STANDBYRTT_POLICY` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_STANDBYRTT_REQUIRED` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_TAILPROBE` | yes | no | recovery | unexposed |
+| `SRTO_ROBOTWEAX_VERSION` | yes | no | identity | unexposed |
+| `SRTO_SENDER` | yes | yes | tuning | unexposed |
+| `SRTO_SNDBUF` | yes | yes | core | typed_config |
+| `SRTO_SNDDATA` | yes | yes | telemetry | unexposed |
+| `SRTO_SNDDROPDELAY` | yes | yes | tuning | unexposed |
+| `SRTO_SNDKMSTATE` | yes | yes | telemetry | partial_info_mapping |
+| `SRTO_SNDSYN` | yes | yes | core | fixed_nonblocking_abort_enforced |
+| `SRTO_SNDTIMEO` | yes | yes | tuning | unexposed |
+| `SRTO_STATE` | yes | yes | telemetry | partial_info_mapping |
+| `SRTO_STREAMID` | yes | yes | core | typed_config |
+| `SRTO_TLPKTDROP` | yes | yes | tuning | unexposed |
+| `SRTO_TRANSTYPE` | yes | yes | profiles | partial_live_file_only |
+| `SRTO_TSBPDMODE` | yes | yes | tuning | unexposed |
+| `SRTO_UDP_RCVBUF` | yes | yes | tuning | unexposed |
+| `SRTO_UDP_SNDBUF` | yes | yes | tuning | unexposed |
+| `SRTO_VERSION` | yes | yes | telemetry | unexposed |
+
+All common native statistics and message-control fields and all source-tree C++
+header declarations are enumerated in [the JSON inventory](native-surface.json).
+Native statistics are not the wrapper’s optional application-byte counters.

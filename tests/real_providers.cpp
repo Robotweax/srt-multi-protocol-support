@@ -1,6 +1,7 @@
 #include <future>
 #include <atomic>
 #include <srtmux/module.hpp>
+#include <srtmux/extensions.h>
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -20,6 +21,8 @@ struct Session {
     Module module;
     const srtm_provider_api_v1& api;
     srtm_runtime* runtime = nullptr;
+    const srtmx_profiles_api_v1* profiles = nullptr;
+    const srtmx_telemetry_api_v1* telemetry = nullptr;
     srtm_error_v1 error = record<srtm_error_v1>();
     std::vector<srtm_handle> objects;
     static Module load(const char* path, const char* name, const char* release) {
@@ -31,6 +34,11 @@ struct Session {
         : module(load(path, name, release)), api(module.api()) {
         auto host = record<srtm_host_v1>();
         check(api.runtime_create(&host, &runtime, &error));
+        const srtm_extension_header_v1* table = nullptr;
+        check(api.query_extension(runtime, {SRTMX_PROFILES, sizeof(SRTMX_PROFILES)-1}, 1, 0, &table, &error));
+        profiles = reinterpret_cast<const srtmx_profiles_api_v1*>(table);
+        check(api.query_extension(runtime, {SRTMX_TELEMETRY, sizeof(SRTMX_TELEMETRY)-1}, 1, 0, &table, &error));
+        telemetry = reinterpret_cast<const srtmx_telemetry_api_v1*>(table);
     }
     void check(srtm_status status) {
         if (status != SRTM_OK) throw std::runtime_error(module.info().implementation + ": " + error.message + " (status " + std::to_string(status) + ")");
@@ -66,24 +74,57 @@ srtm_config_v1 config(uint32_t mode, bool encrypted, bool accounting = false) {
     c.send_buffer_bytes = 8 * 1024 * 1024; c.receive_buffer_bytes = c.send_buffer_bytes;
     return c;
 }
+srtmx_profile_v1 profile_config(srtm_config_v1 base) {
+    auto p = record<srtmx_profile_v1>(); p.mode = base.mode; p.cipher = base.encryption;
+    base.encryption = 0; p.base = base; p.max_message_bytes = base.payload_bytes;
+    p.fec = record<srtmx_fec_v1>(); p.tuning = record<srtmx_tuning_v1>(); p.tuning.max_bandwidth_bytes_s = -1;
+    return p;
+}
+srtm_handle make_profile(Session& s, srtm_config_v1 cfg) {
+    auto p = profile_config(cfg); srtm_handle h = 0;
+    std::vector<uint8_t> secret;
+    if (cfg.passphrase.size) {
+        secret.assign(cfg.passphrase.data, cfg.passphrase.data+cfg.passphrase.size);
+        p.base.passphrase = {secret.data(), secret.size()};
+    }
+    s.check(s.profiles->create_profile(s.runtime, &p, &h, &s.error));
+    std::fill(secret.begin(), secret.end(), uint8_t(0)); // Provider must own its copy.
+    return h;
+}
 struct Pair {
     Session &caller, &server;
     srtm_handle listener = 0, tx = 0, rx = 0;
-    Pair(Session& c, Session& s, const srtm_config_v1& cfg, bool ipv6 = false) : caller(c), server(s) {
+    Pair(Session& c, Session& s, const srtm_config_v1& cfg, bool ipv6 = false, bool profiles = false) : caller(c), server(s) {
         auto lc = record<srtm_listener_config_v1>(); lc.transport = cfg; lc.backlog = 8;
         lc.local.family = ipv6 ? SRTM_AF_IPV6 : SRTM_AF_IPV4;
         if (ipv6) lc.local.address[15] = 1; else { lc.local.address[0] = 127; lc.local.address[3] = 1; }
-        server.check(server.api.listener_create(server.runtime, &lc, &listener, &server.error)); server.objects.push_back(listener);
+        if (profiles) {
+            auto h = make_profile(server, cfg); auto input = record<srtmx_listener_v1>();
+            input.local = lc.local; input.backlog = 8; input.allowed_profiles = &h; input.profile_count = 1;
+            auto out = record<srtmx_object_v1>();
+            server.check(server.profiles->listen(server.runtime, &input, &out, &server.error)); listener = out.handle;
+            server.check(server.profiles->release_profile(server.runtime, h, &server.error));
+        } else server.check(server.api.listener_create(server.runtime, &lc, &listener, &server.error));
+        server.objects.push_back(listener);
         srtm_endpoint ep{}; server.check(server.api.listener_endpoint(server.runtime, listener, &ep, &server.error));
         require(ep.port != 0, "Listener did not obtain a port");
-        tx = caller.connection(cfg);
-        require(caller.api.connection_connect(caller.runtime, tx, &ep, &caller.error) == SRTM_PENDING, "Connect not initiated");
+        if (profiles) {
+            auto h = make_profile(caller, cfg); auto out = record<srtmx_object_v1>();
+            require(caller.profiles->connect(caller.runtime, h, nullptr, &ep, 0, &out, &caller.error) == SRTM_PENDING, caller.error.message);
+            tx = out.handle; caller.objects.push_back(tx);
+            caller.check(caller.profiles->release_profile(caller.runtime, h, &caller.error));
+        } else {
+            tx = caller.connection(cfg);
+            require(caller.api.connection_connect(caller.runtime, tx, &ep, &caller.error) == SRTM_PENDING, "Connect not initiated");
+        }
         auto deadline = Clock::now() + 5s;
         bool connected = false;
         while (!rx || !connected) {
             require(Clock::now() < deadline, "Connection deadline exceeded");
             if (!rx) {
-                auto status = server.api.listener_accept(server.runtime, listener, &rx, &server.error);
+                auto object = record<srtmx_object_v1>(); auto io = record<srtm_io_error_v1>();
+                auto status = profiles ? server.profiles->accept(server.runtime, listener, &object, &io) : server.api.listener_accept(server.runtime, listener, &rx, &server.error);
+                if (profiles && status == SRTM_OK) { require(object.kind == SRTMX_KIND_CONNECTION, "accept kind"); rx = object.handle; }
                 if (status == SRTM_OK) server.objects.push_back(rx);
                 else require(status == SRTM_WOULD_BLOCK, server.error.message);
             }
@@ -233,6 +274,58 @@ void reject_bad_secret(Session& caller, Session& server) {
     require(state.terminal_error.category != SRTM_ERR_NONE, "Missing terminal rejection diagnostic");
     caller.drop(connection); server.drop(listener);
 }
+void extension_checks(Session& s, Session& other) {
+    const srtm_extension_header_v1* table = nullptr;
+    require(s.api.query_extension(s.runtime, {SRTMX_PROFILES, sizeof(SRTMX_PROFILES)-1}, 2, 0, &table, &s.error) == SRTM_FAILED && !table && s.error.category == SRTM_ERR_ABI_MISMATCH, "extension major mismatch");
+    require(s.api.query_extension(s.runtime, {SRTMX_TELEMETRY, sizeof(SRTMX_TELEMETRY)-1}, 1, 1, &table, &s.error) == SRTM_FAILED && !table, "extension minor mismatch");
+    auto p = profile_config(config(SRTM_LIVE_MESSAGES, false)); srtm_handle h = 0;
+    p.mode = SRTMX_CONTROL;
+    require(s.profiles->create_profile(s.runtime, &p, &h, &s.error) == SRTM_FAILED && s.error.category == SRTM_ERR_UNSUPPORTED && !h, "unsupported channel");
+    p.mode = SRTM_LIVE_MESSAGES; p.base.struct_size = 1;
+    require(s.profiles->create_profile(s.runtime, &p, &h, &s.error) == SRTM_FAILED && !h, "short nested profile");
+    h = make_profile(s, config(SRTM_FILE_STREAM, false));
+    require(other.profiles->release_profile(other.runtime, h, &other.error) == SRTM_FAILED, "foreign profile");
+    s.check(s.profiles->release_profile(s.runtime, h, &s.error));
+    require(s.profiles->release_profile(s.runtime, h, &s.error) == SRTM_FAILED, "stale profile");
+    // Nondefault bounded tuning is validated before publishing an immutable profile.
+    p = profile_config(config(SRTM_LIVE_MESSAGES, false)); p.tuning.flow_window_packets = 8192;
+    p.tuning.max_bandwidth_bytes_s = 20000000; p.tuning.ip_ttl = 32; p.tuning.overhead_percent = 25;
+    s.check(s.profiles->create_profile(s.runtime, &p, &h, &s.error)); s.check(s.profiles->release_profile(s.runtime, h, &s.error));
+    Pair pair(s, other, config(SRTM_FILE_STREAM, true), false, true);
+    transfer(s, pair.tx, other, pair.rx, SRTM_FILE_STREAM);
+    auto metric = record<srtmx_metric_info_v1>(); const char name[] = "native.byteSentUniqueTotal";
+    s.check(s.telemetry->resolve(s.runtime, {name, sizeof(name)-1}, &metric, &s.error));
+    auto object = record<srtmx_object_v1>(); object.kind = SRTMX_KIND_CONNECTION; object.handle = pair.tx;
+    auto snap = record<srtmx_snapshot_v1>(); uint32_t required = 0;
+    struct Output { srtmx_metric_v1 metric; uint64_t tail; } out{record<srtmx_metric_v1>(), UINT64_C(0x123456789abcdef)};
+    out.metric.struct_size = sizeof(out);
+    require(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 0, &required, &snap, &s.error) == SRTM_BUFFER_TOO_SMALL && required == 1 && out.metric.id == 0, "snapshot capacity transaction");
+    s.check(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 1, &required, &snap, &s.error));
+    require(out.tail == UINT64_C(0x123456789abcdef) && out.metric.value.u64 >= 256*1316 && snap.counter_epoch == pair.tx, "native snapshot values/tail");
+    std::array<uint32_t,82> all_ids{}; std::array<srtmx_metric_v1,82> all_values{};
+    for (uint32_t i=0;i<all_ids.size();++i) { all_ids[i]=i+1; all_values[i]=record<srtmx_metric_v1>(); }
+    s.check(s.telemetry->snapshot(s.runtime, object, all_ids.data(), uint32_t(all_ids.size()), all_values.data(), sizeof(all_values[0]), uint32_t(all_values.size()), &required, &snap, &s.error));
+    require(snap.count==82 && all_values[81].id==82, "complete native catalogue");
+    auto previous = out.metric.value.u64;
+    s.check(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 1, &required, &snap, &s.error));
+    require(out.metric.value.u64 >= previous, "snapshot cleared counters");
+    uint32_t bad = UINT32_MAX;
+    require(s.telemetry->snapshot(s.runtime, object, &bad, 1, &out, sizeof(out), 1, &required, &snap, &s.error) == SRTM_FAILED && out.metric.value.u64 >= previous, "unknown metric ID mutated output");
+    std::atomic<bool> entered{false}, done{false}; std::atomic<int> successes{0};
+    auto reader = std::async(std::launch::async, [&] {
+        auto value = record<srtmx_metric_v1>(); auto snapshot = record<srtmx_snapshot_v1>(); auto d = record<srtm_error_v1>(); uint32_t n;
+        do {
+            auto status = s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &value, sizeof(value), 1, &n, &snapshot, &d);
+            if (status == SRTM_OK) ++successes;
+            else require(status == SRTM_FAILED && d.category == SRTM_ERR_INVALID_HANDLE, "snapshot close race");
+            entered = true;
+        } while (!done.load());
+    });
+    while (!entered.load()) std::this_thread::yield();
+    s.check(s.profiles->close(s.runtime, object, &s.error)); done = true; reader.get();
+    require(successes > 0, "no concurrent telemetry observation");
+    require(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 1, &required, &snap, &s.error) == SRTM_FAILED, "snapshot after close");
+}
 int main(int argc, char** argv) {
     try {
         require(argc == 4, "Expected two provider paths and load order");
@@ -241,6 +334,7 @@ int main(int argc, char** argv) {
         auto second = std::make_unique<Session>(reversed ? argv[1] : argv[2], reversed ? "robotweax" : "haivision", reversed ? "0.3.3" : "1.5.7");
         Session& rw = reversed ? *second : *first; Session& hv = reversed ? *first : *second;
         checks(rw, hv); checks(hv, rw);
+        extension_checks(rw, hv); extension_checks(hv, rw);
         polling_checks(rw,hv); polling_checks(hv,rw);
         reject_bad_secret(rw, hv); reject_bad_secret(hv, rw);
         for (auto* sender : {&rw, &hv}) {
@@ -280,10 +374,15 @@ int main(int argc, char** argv) {
                         receiver->check(receiver->api.connection_info(receiver->runtime, pair.rx, &state, &receiver->error));
                         require((state.valid_fields & 8) && state.encryption == (encrypted ? SRTM_ENCRYPTION_AES_CTR_REQUIRED : SRTM_ENCRYPTION_DISABLED), "Encryption readback unavailable or wrong after transfer");
                     }
+        for (auto mode : {SRTM_LIVE_MESSAGES, SRTM_FILE_STREAM}) for (bool encrypted : {false, true})
+            for (auto* sender : {&rw, &hv}) for (auto* receiver : {&rw, &hv}) {
+                Pair pair(*sender, *receiver, config(mode, encrypted), false, true);
+                transfer(*sender, pair.tx, *receiver, pair.rx, mode);
+            }
         // Both implementations actively transfer at once, in opposite directions.
         {
-            Pair ab(rw, hv, config(SRTM_LIVE_MESSAGES, true, true));
-            Pair ba(hv, rw, config(SRTM_FILE_STREAM, true));
+            Pair ab(rw, hv, config(SRTM_LIVE_MESSAGES, true, true), false, true);
+            Pair ba(hv, rw, config(SRTM_FILE_STREAM, true), false, true);
             std::exception_ptr failure1, failure2;
             std::thread one([&] { try { transfer(rw, ab.tx, hv, ab.rx, SRTM_LIVE_MESSAGES); } catch (...) { failure1 = std::current_exception(); } });
             std::thread two([&] { try { transfer(hv, ba.tx, rw, ba.rx, SRTM_FILE_STREAM); } catch (...) { failure2 = std::current_exception(); } });

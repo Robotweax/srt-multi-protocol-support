@@ -46,6 +46,20 @@ struct Context {
     const srtm_provider_api_v1& api;
     ProviderInfo info;
     srtm_runtime* runtime = nullptr;
+    const srtmx_profiles_api_v1* profiles = nullptr;
+    const srtmx_telemetry_api_v1* telemetry = nullptr;
+    void load_extensions() {
+        const srtm_extension_header_v1* table = nullptr;
+        auto query = [&](const char* name) { table = nullptr; return api.query_extension(runtime, {name, std::strlen(name)}, 1, 0, &table, nullptr) == SRTM_OK && table && table->abi_major == 1; };
+        if (query(SRTMX_PROFILES) && table->struct_size >= sizeof(srtmx_profiles_api_v1)) {
+            auto* p = reinterpret_cast<const srtmx_profiles_api_v1*>(table);
+            if (p->describe && p->create_profile && p->release_profile && p->connect && p->listen && p->accept && p->info && p->close && p->release && p->send && p->receive) profiles = p;
+        }
+        if (query(SRTMX_TELEMETRY) && table->struct_size >= sizeof(srtmx_telemetry_api_v1)) {
+            auto* p = reinterpret_cast<const srtmx_telemetry_api_v1*>(table);
+            if (p->resolve && p->snapshot && p->peer_identity) telemetry = p;
+        }
+    }
     uint64_t domain;
     Context(host::Module m, uint64_t clock_domain) : module(std::move(m)), api(module.api()), info(translate(module.info())), domain(clock_domain) {}
     ~Context() {
@@ -145,6 +159,12 @@ TransportConfig file_stream_profile() { auto c = live_profile(); c.mode = Mode::
 Interest operator|(Interest a, Interest b) noexcept { return static_cast<Interest>(static_cast<uint32_t>(a)|static_cast<uint32_t>(b)); }
 bool contains(Interest mask, Interest bit) noexcept { return (static_cast<uint32_t>(mask)&static_cast<uint32_t>(bit)) == static_cast<uint32_t>(bit); }
 
+struct Profile::Impl {
+    std::shared_ptr<Context> context;
+    srtm_handle handle = 0;
+    explicit Impl(std::shared_ptr<Context> c) : context(std::move(c)) {}
+    ~Impl() { if (handle) context->profiles->release_profile(context->runtime, handle, nullptr); }
+};
 struct Connection::Impl : OwnedObject { using OwnedObject::OwnedObject; };
 struct Listener::Impl : OwnedObject { using OwnedObject::OwnedObject; };
 struct Provider::Impl { std::shared_ptr<Context> context; explicit Impl(std::shared_ptr<Context> c) : context(std::move(c)) {} };
@@ -183,6 +203,7 @@ Type::Type(std::unique_ptr<Impl> p) : impl_(std::move(p)) {} \
 Type::~Type() noexcept = default; \
 Type::Type(Type&&) noexcept = default; \
 Type& Type::operator=(Type&&) noexcept = default
+MOVE_ONLY(Profile);
 MOVE_ONLY(Connection);
 MOVE_ONLY(Listener);
 MOVE_ONLY(Poller);
@@ -221,6 +242,7 @@ Result<Provider> TransportRuntime::load(const ProviderSpec& spec) {
         context = std::make_shared<Context>(std::move(m), next_domain++);
         auto host = record<srtm_host_v1>(); auto d = record<srtm_error_v1>();
         if (context->api.runtime_create(&host, &context->runtime, &d) != SRTM_OK) return rich_error(context.get(), "runtime.create", d);
+        context->load_extensions();
         registry[&context->api] = context;
     }
     if (std::find(impl_->contexts.begin(), impl_->contexts.end(), context) == impl_->contexts.end()) impl_->contexts.push_back(context);
@@ -271,6 +293,60 @@ Result<SourceTime> Provider::now() const {
     auto& c = *impl_->context; auto d = record<srtm_error_v1>(); uint64_t value = 0;
     if (c.api.clock_now_us(c.runtime, &value, &d) != SRTM_OK) return rich_error(&c, "now", d);
     return SourceTime{c.domain, std::chrono::microseconds(value)};
+}
+ProfileConfig ProfileConfig::basic(TransportConfig transport) {
+    auto t = record<srtmx_tuning_v1>(); t.max_bandwidth_bytes_s = -1;
+    return {std::move(transport), t};
+}
+Result<Profile> Provider::create_profile(const ProfileConfig& input) const {
+    auto& c = *impl_->context;
+    if (!c.profiles) return local_error(ErrorCategory::unsupported, "profile.create", "Profiles extension unavailable");
+    auto cfg = config(input.transport); if (auto* failure = std::get_if<Error>(&cfg)) return *failure;
+    auto p = record<srtmx_profile_v1>(); p.base = std::get<srtm_config_v1>(cfg); p.mode = p.base.mode;
+    p.cipher = p.base.encryption; p.base.encryption = 0; p.max_message_bytes = p.base.payload_bytes;
+    p.fec = record<srtmx_fec_v1>(); p.tuning = input.tuning;
+    auto object = std::make_unique<Profile::Impl>(impl_->context); auto d = record<srtm_error_v1>();
+    if (c.profiles->create_profile(c.runtime, &p, &object->handle, &d) != SRTM_OK) return rich_error(&c, "profile.create", d);
+    return Profile(std::move(object));
+}
+Result<Connection> Provider::connect_profile(const Profile& profile, const Endpoint& remote, std::optional<Endpoint> local) const {
+    auto& c = *impl_->context;
+    if (!profile.impl_ || profile.impl_->context != impl_->context) return local_error(ErrorCategory::invalid_handle, "profile.connect", "Foreign or moved profile");
+    auto ep = endpoint(remote); if (auto* failure = std::get_if<Error>(&ep)) return *failure;
+    srtm_endpoint local_ep{};
+    if (local) { auto v = endpoint(*local); if (auto* failure = std::get_if<Error>(&v)) return *failure; local_ep = std::get<srtm_endpoint>(v); }
+    auto object = std::make_unique<Connection::Impl>(impl_->context, 0); auto out = record<srtmx_object_v1>(); auto d = record<srtm_error_v1>();
+    auto status = c.profiles->connect(c.runtime, profile.impl_->handle, local ? &local_ep : nullptr, &std::get<srtm_endpoint>(ep), 0, &out, &d);
+    if (status != SRTM_OK && status != SRTM_PENDING) return rich_error(&c, "profile.connect", d);
+    object->handle = out.handle; return Connection(std::move(object));
+}
+Result<Listener> Provider::listen_profile(const Profile& profile, const Endpoint& local, std::uint32_t backlog) const {
+    auto& c = *impl_->context;
+    if (!profile.impl_ || profile.impl_->context != impl_->context) return local_error(ErrorCategory::invalid_handle, "profile.listen", "Foreign or moved profile");
+    auto ep = endpoint(local); if (auto* failure = std::get_if<Error>(&ep)) return *failure;
+    auto config = record<srtmx_listener_v1>(); config.local = std::get<srtm_endpoint>(ep); config.backlog = backlog;
+    config.allowed_profiles = &profile.impl_->handle; config.profile_count = 1;
+    auto object = std::make_unique<Listener::Impl>(impl_->context, 0); auto out = record<srtmx_object_v1>(); auto d = record<srtm_error_v1>();
+    if (c.profiles->listen(c.runtime, &config, &out, &d) != SRTM_OK) return rich_error(&c, "profile.listen", d);
+    object->handle = out.handle; return Listener(std::move(object));
+}
+Result<srtmx_metric_info_v1> Connection::resolve_metric(std::string_view name) const {
+    auto& c = *impl_->context;
+    if (!c.telemetry) return local_error(ErrorCategory::unsupported, "telemetry.resolve", "Telemetry unavailable");
+    auto out = record<srtmx_metric_info_v1>(); auto d = record<srtm_error_v1>();
+    if (c.telemetry->resolve(c.runtime, {name.data(), name.size()}, &out, &d) != SRTM_OK) return rich_error(&c, "telemetry.resolve", d);
+    return out;
+}
+TelemetryResult Connection::native_snapshot(std::span<const std::uint32_t> ids, std::span<srtmx_metric_v1> records) const {
+    auto& c = *impl_->context;
+    if (!c.telemetry) return IoError{ErrorCategory::unsupported, 0, 0, 0, 0};
+    if (ids.size() > UINT32_MAX || records.size() > UINT32_MAX) return IoError{ErrorCategory::invalid_argument, 0, 0, 0, 0};
+    auto o = record<srtmx_object_v1>(); o.kind = SRTMX_KIND_CONNECTION; o.handle = impl_->handle;
+    auto out = record<srtmx_snapshot_v1>(); auto d = record<srtm_error_v1>(); uint32_t required = 0;
+    auto status = c.telemetry->snapshot(c.runtime, o, ids.data(), uint32_t(ids.size()), records.data(), sizeof(srtmx_metric_v1), uint32_t(records.size()), &required, &out, &d);
+    if (status == SRTM_OK) { out.clock_domain = c.domain; return out; }
+    if (status == SRTM_BUFFER_TOO_SMALL) return TelemetryCapacity{required};
+    return IoError{category(d.category), d.detail_flags, d.vendor_code, d.os_code, d.rejection_code};
 }
 Result<Connection> Provider::create_connection(const TransportConfig& input) const {
     auto cfg = config(input); if (auto* failure = std::get_if<Error>(&cfg)) return *failure;
