@@ -84,10 +84,9 @@ srtm_status ext_create_profile(srtm_runtime* r, const srtmx_profile_v1* c, srtm_
     std::lock_guard lock(r->control);
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime stopping", d);
     if (r->profiles.size() >= 65536) return error(SRTM_ERR_RESOURCE, "Profile capacity exhausted", d);
-    auto gen = generation_source.load();
-    do { if (gen == UINT32_MAX) return error(SRTM_ERR_RESOURCE, "Handle generation exhausted", d); }
-    while (!generation_source.compare_exchange_weak(gen, gen+1));
-    const auto h = (uint64_t(PROVIDER_TAG ^ 0x8000u) << 48) | (uint64_t(gen) << 16);
+    // Profiles have their own 48-bit sequence under a disjoint type tag.
+    if (r->next_profile >= (UINT64_C(1) << 48)) return error(SRTM_ERR_RESOURCE, "Handle generation exhausted", d);
+    const auto h = (uint64_t(PROVIDER_TAG ^ 0x8000u) << 48) | r->next_profile++;
     r->profiles.emplace(h, std::move(p)); *out = h; return SRTM_OK;
 }
 srtm_status ext_release_profile(srtm_runtime* r, srtm_handle h, srtm_error_v1* d) {

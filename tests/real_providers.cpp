@@ -278,7 +278,8 @@ void reject_bad_secret(Session& caller, Session& server) {
         require(Clock::now() < until, "Wrong-passphrase rejection did not complete");
         std::this_thread::sleep_for(1ms);
     }
-    require(state.terminal_error.category != SRTM_ERR_NONE, "Missing terminal rejection diagnostic");
+    require(state.terminal_error.category == SRTM_ERR_AUTHENTICATION && (state.terminal_error.detail_flags & 4),
+        "Wrong passphrase must be reported as an authentication failure with its rejection code");
     caller.drop(connection); server.drop(listener);
 }
 void extension_checks(Session& s, Session& other) {
@@ -333,6 +334,85 @@ void extension_checks(Session& s, Session& other) {
     require(successes > 0, "no concurrent telemetry observation");
     require(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 1, &required, &snap, &s.error) == SRTM_FAILED, "snapshot after close");
 }
+// Regression checks for the foundation review: native wake latency, close
+// notification through per-object watcher lists, and per-slot generations.
+void review_checks(Session& a) {
+    const auto cfg = config(SRTM_FILE_STREAM, false);
+    auto wait_zero = [&](srtm_handle poller, srtm_event_v1& event) {
+        uint32_t count = 0; auto io = record<srtm_io_error_v1>();
+        const auto status = a.api.poller_wait(a.runtime, poller, 0, &event, 1, sizeof(event), &count, &io, &a.error);
+        require(status == SRTM_OK || status == SRTM_TIMED_OUT, "zero-timeout poll failed");
+        return status == SRTM_OK && count == 1;
+    };
+    { // A closed object reaches exactly the pollers still subscribed to it.
+        srtm_handle one = 0, two = 0, three = 0;
+        a.check(a.api.poller_create(a.runtime, &one, &a.error)); a.check(a.api.poller_create(a.runtime, &two, &a.error));
+        a.check(a.api.poller_create(a.runtime, &three, &a.error));
+        auto h = a.connection(cfg); auto other = a.connection(cfg);
+        a.check(a.api.poller_register(a.runtime, one, h, SRTM_READY_READ, 11, &a.error));
+        a.check(a.api.poller_register(a.runtime, one, h, SRTM_READY_READ|SRTM_READY_STATE, 12, &a.error)); // Update, not a second watcher.
+        a.check(a.api.poller_register(a.runtime, two, h, SRTM_READY_READ, 21, &a.error));
+        a.check(a.api.poller_register(a.runtime, three, h, SRTM_READY_READ, 31, &a.error));
+        a.check(a.api.poller_register(a.runtime, two, other, SRTM_READY_READ, 22, &a.error));
+        a.check(a.api.poller_remove(a.runtime, three, h, &a.error));
+        a.check(a.api.object_close(a.runtime, h, SRTM_CLOSE_ABORT, 0, &a.error));
+        auto event = record<srtm_event_v1>();
+        require(wait_zero(one, event) && event.registration_token == 12 && event.readiness == (SRTM_READY_ERROR|SRTM_READY_STATE), "first watcher missed close");
+        require(wait_zero(two, event) && event.registration_token == 21 && event.object == h && event.readiness == SRTM_READY_ERROR, "second watcher missed close");
+        require(!wait_zero(three, event), "removed watcher was notified");
+        a.drop(h);
+        require(!wait_zero(one, event) && !wait_zero(two, event), "released object retained readiness");
+        a.check(a.api.poller_release(a.runtime, two, &a.error)); // Releases its remaining subscription to `other`.
+        a.drop(other);
+        a.check(a.api.poller_release(a.runtime, one, &a.error)); a.check(a.api.poller_release(a.runtime, three, &a.error));
+    }
+    { // Reusing one slot must not consume generations of any other slot.
+        auto generation = [](srtm_handle h) { return static_cast<uint32_t>(h >> 16); };
+        auto kept = a.connection(cfg); auto churn = a.connection(cfg);
+        const srtm_handle kept_slot = kept & 0xffffu; const uint32_t kept_generation = generation(kept);
+        for (int i = 0; i < 50; ++i) {
+            const srtm_handle slot = churn & 0xffffu; const uint32_t previous = generation(churn);
+            a.drop(churn); churn = a.connection(cfg);
+            require((churn & 0xffffu) == slot && generation(churn) == previous + 1, "slot reuse did not advance its own generation by one");
+        }
+        a.drop(churn); a.drop(kept);
+        auto again = a.connection(cfg); // Most recently released slot is reused first.
+        require((again & 0xffffu) == kept_slot && generation(again) == kept_generation + 1 && again != kept,
+            "unrelated churn consumed another slot's generation range");
+        auto state = record<srtm_connection_info_v1>(); state.terminal_error = record<srtm_error_v1>();
+        require(a.api.connection_info(a.runtime, kept, &state, &a.error) == SRTM_FAILED && a.error.category == SRTM_ERR_INVALID_HANDLE, "stale handle accepted after slot reuse");
+        a.drop(again);
+    }
+    { // wake() must reach a blocked waiter natively, not on a polling tick.
+        srtm_handle poller = 0; a.check(a.api.poller_create(a.runtime, &poller, &a.error));
+        auto h = a.connection(cfg); a.check(a.api.poller_register(a.runtime, poller, h, SRTM_READY_READ, 1, &a.error));
+        std::vector<double> latency;
+        for (int i = 0; i < 25; ++i) {
+            std::atomic<Clock::time_point> returned{};
+            auto wait = std::async(std::launch::async, [&] {
+                auto output = record<srtm_event_v1>(); auto error = record<srtm_io_error_v1>(); uint32_t n = 0;
+                while (true) { // The observer below may briefly hold the single waiter slot.
+                    const auto status = a.api.poller_wait(a.runtime, poller, SRTM_WAIT_FOREVER, &output, 1, sizeof(output), &n, &error, nullptr);
+                    if (status == SRTM_FAILED && error.category == SRTM_ERR_BUSY) { std::this_thread::yield(); continue; }
+                    returned = Clock::now(); return status;
+                }
+            });
+            auto event = record<srtm_event_v1>(); uint32_t count = 0; auto io = record<srtm_io_error_v1>(); const auto until = Clock::now()+2s;
+            while (!(a.api.poller_wait(a.runtime, poller, 0, &event, 1, sizeof(event), &count, &io, nullptr) == SRTM_FAILED && io.category == SRTM_ERR_BUSY)) {
+                require(Clock::now() < until, "waiter did not enter"); std::this_thread::yield();
+            }
+            std::this_thread::sleep_for(3ms + std::chrono::microseconds(i*397 % 5000)); // Let it block; vary the phase.
+            const auto signalled = Clock::now();
+            a.check(a.api.poller_wake(a.runtime, poller, &a.error));
+            require(wait.get() == SRTM_INTERRUPTED, "wake did not interrupt wait");
+            latency.push_back(std::chrono::duration<double, std::milli>(returned.load()-signalled).count());
+        }
+        std::sort(latency.begin(), latency.end());
+        std::cout << a.module.info().implementation << " poller wake median " << latency[latency.size()/2] << " ms\n";
+        require(latency[latency.size()/2] < 2.0, "poller wake is not native (median above 2 ms)");
+        a.check(a.api.poller_release(a.runtime, poller, &a.error)); a.drop(h);
+    }
+}
 int main(int argc, char** argv) {
     try {
         require(argc == 4, "Expected two provider paths and load order");
@@ -343,6 +423,7 @@ int main(int argc, char** argv) {
         checks(rw, hv); checks(hv, rw);
         extension_checks(rw, hv); extension_checks(hv, rw);
         polling_checks(rw,hv); polling_checks(hv,rw);
+        review_checks(rw); review_checks(hv);
         reject_bad_secret(rw, hv); reject_bad_secret(hv, rw);
         for (auto* sender : {&rw, &hv}) {
             Session& receiver = sender == &rw ? hv : rw;
