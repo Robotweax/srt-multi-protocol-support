@@ -35,7 +35,16 @@ key-management handlers and checks closure before accessing crypto. It adds no
 locks to payload or ACK handling. `build_features` records `km-close-fix` with
 the patched source hash; the build fingerprint includes it. Both direct and
 wrapped benchmark paths link the same patched library. This is not an unmodified
-upstream binary. Distribute this patch and the MPL-2.0 upstream source/license.
+upstream binary. Distribute these patches and the MPL-2.0 upstream source/license.
+
+The [caller state transition patch](haivision-1.5.7-connect-state.patch) additionally
+publishes the native connected flag before clearing the connecting flag. Native
+`getStatus()` otherwise briefly reports a successful caller handshake as broken.
+The change uses the existing native connection lock and adds no data-path work.
+`build_features` records `connect-state-fix`; the same patched-source hash and
+fingerprint cover both compatibility fixes. A test-only core copy pauses the real
+handshake at the transition to check state readback and subsequent payload
+transfer. No pause or test hook is compiled into the production modules.
 
 Each module contains its own static SRT implementation. The OpenSSL library is a
 shared system dependency; the adapter never performs process-global OpenSSL

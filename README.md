@@ -15,7 +15,8 @@ and the C++ Connection/Listener/Poller facade are implemented.
 
 See [real provider build and usage](providers/README.md) for exact source pins,
 supported profiles, concurrency rules and unsupported APIs.
-Haivision 1.5.7 includes a documented native key-management/close lifetime fix.
+Haivision 1.5.7 includes documented native key-management/close lifetime and
+[caller-state transition fixes](docs/validation/2026-11-17-ci-connect-state.md).
 Haivision File/IPv6 is explicitly rejected pending qualification after a native
 failure reproduced on macOS. Admission/log callbacks and graceful drain-close
 remain unsupported; they are not silently approximated.

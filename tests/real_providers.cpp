@@ -130,7 +130,14 @@ struct Pair {
             }
             auto info = record<srtm_connection_info_v1>(); info.terminal_error = record<srtm_error_v1>();
             caller.check(caller.api.connection_info(caller.runtime, tx, &info, &caller.error));
-            require(info.state != SRTM_FAILED_STATE, "Caller setup failed");
+            if (info.state == SRTM_FAILED_STATE) {
+                const auto& error = info.terminal_error;
+                throw std::runtime_error("Caller setup failed: " + caller.module.info().implementation + " -> " +
+                    server.module.info().implementation + " mode=" + std::to_string(cfg.mode) +
+                    " encryption=" + std::to_string(cfg.encryption) + " ipv6=" + std::to_string(ipv6) +
+                    " profiles=" + std::to_string(profiles) + " category=" + std::to_string(error.category) +
+                    " rejection=" + std::to_string(error.rejection_code) + " " + error.message);
+            }
             connected = info.state == SRTM_CONNECTED;
             if (!rx || !connected) std::this_thread::sleep_for(1ms);
         }

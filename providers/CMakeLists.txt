@@ -68,7 +68,7 @@ foreach(provider IN ITEMS robotweax haivision)
     target_include_directories(srtmux_${provider} PRIVATE "${robotweax_SOURCE_DIR}/include/srt")
     target_link_libraries(srtmux_${provider} PRIVATE robotweax_srt)
   else()
-    set(features "profiles-v1,native-telemetry-v1,experimental-off,aead-off,bonding-off,maxrexmitbw-off,static-srt,shared-openssl,basic-io,native-poller,native-wake=${wake_bridge_hash},km-close-fix=${haivision_patch_hash}")
+    set(features "profiles-v1,native-telemetry-v1,experimental-off,aead-off,bonding-off,maxrexmitbw-off,static-srt,shared-openssl,basic-io,native-poller,native-wake=${wake_bridge_hash},km-close-fix=${haivision_patch_hash},connect-state-fix")
     set(release 1.5.7)
     set(tag 0x4856)
     target_compile_definitions(srtmux_${provider} PRIVATE PROVIDER_HAIVISION=1)
@@ -125,4 +125,38 @@ if(SRTMUX_BUILD_BENCHMARKS AND NOT WIN32)
   target_compile_features(srtmux_native_file_ipv6 PRIVATE cxx_std_20)
   target_include_directories(srtmux_native_file_ipv6 PRIVATE "${haivision_SOURCE_DIR}/srtcore" "${haivision_BINARY_DIR}")
   target_link_libraries(srtmux_native_file_ipv6 PRIVATE srt_static Threads::Threads)
+endif()
+
+# Pause a private copy of the real native handshake at the flag transition. The
+# executable supplies all core.cpp symbols, so its static archive dependency
+# supplies the other vendor objects without pulling in the production core.
+# No hook, exported test API or timing delay is added to either provider module.
+if(BUILD_TESTING)
+  find_package(Threads REQUIRED)
+  set(test_core "extern \"C\" void srtmux_test_connect_transition();\n${patched_core}")
+  string(REPLACE "\n    m_bConnecting = false;\n"
+    "\n    m_bConnecting = false;\n    srtmux_test_connect_transition();\n"
+    test_core "${test_core}")
+  set(test_core_path "${CMAKE_CURRENT_BINARY_DIR}/haivision-connect-test/core.cpp")
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/haivision-connect-test")
+  file(WRITE "${test_core_path}.in" "${test_core}")
+  configure_file("${test_core_path}.in" "${test_core_path}" COPYONLY)
+  add_executable(haivision_connect_state_test ../tests/haivision_connect_state.cpp "${test_core_path}")
+  # Vendor directory flags include layout-affecting ENABLE_LOGGING. Preserve
+  # them and its language mode, just as for the production wake bridge.
+  get_directory_property(native_cxx_flags DIRECTORY "${haivision_SOURCE_DIR}" DEFINITION CMAKE_CXX_FLAGS)
+  separate_arguments(native_cxx_flags NATIVE_COMMAND "${native_cxx_flags}")
+  target_compile_options(haivision_connect_state_test PRIVATE ${native_cxx_flags})
+  foreach(property IN ITEMS CXX_STANDARD CXX_STANDARD_REQUIRED CXX_EXTENSIONS)
+    get_target_property(native_property srt_virtual ${property})
+    if(NOT native_property STREQUAL "native_property-NOTFOUND")
+      set_target_properties(haivision_connect_state_test PROPERTIES ${property} "${native_property}")
+    endif()
+  endforeach()
+  target_include_directories(haivision_connect_state_test PRIVATE $<TARGET_PROPERTY:srt_virtual,INCLUDE_DIRECTORIES>)
+  target_compile_definitions(haivision_connect_state_test PRIVATE $<TARGET_PROPERTY:srt_virtual,COMPILE_DEFINITIONS>)
+  target_compile_options(haivision_connect_state_test PRIVATE $<TARGET_PROPERTY:srt_virtual,COMPILE_OPTIONS>)
+  target_link_libraries(haivision_connect_state_test PRIVATE srt_static Threads::Threads)
+  add_test(NAME haivision_connect_state COMMAND haivision_connect_state_test)
+  set_tests_properties(haivision_connect_state PROPERTIES TIMEOUT 15)
 endif()

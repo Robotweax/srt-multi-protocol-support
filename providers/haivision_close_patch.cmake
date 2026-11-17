@@ -17,6 +17,17 @@ string(REPLACE
   "        // KMRSP doesn't expect any following action\n        m_pCryptoControl->processSrtMsg_KMRSP"
   "        // SrtMux 1.5.7 compatibility fix: serialize KM processing with closeInternal.\n        ScopedLock crypto_lifetime(m_ConnectionLock);\n        if (m_bClosing || !m_pCryptoControl)\n            return true;\n        // KMRSP doesn't expect any following action\n        m_pCryptoControl->processSrtMsg_KMRSP"
   patched_core "${patched_core}")
+# Native getStatus() treats CONNECTING with both flags false as broken. Publish
+# m_bConnected before clearing m_bConnecting on successful caller completion.
+# The existing connection lock still serializes this path with native close.
+string(REPLACE
+  "    // And, I am connected too.\n    m_bConnecting = false;\n\n"
+  ""
+  patched_core "${patched_core}")
+string(REPLACE
+  "    // Remove from rendezvous queue (in this particular case it's\n"
+  "    // SrtMux 1.5.7 compatibility fix: publish connected before retiring connecting.\n    m_bConnecting = false;\n\n    // Remove from rendezvous queue (in this particular case it's\n"
+  patched_core "${patched_core}")
 set(patched_path "${CMAKE_CURRENT_BINARY_DIR}/haivision-patched/core.cpp")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/haivision-patched")
 # configure_file avoids touching timestamps when the reviewed content is unchanged.
