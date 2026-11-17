@@ -1,0 +1,576 @@
+{
+  "schema": 1,
+  "source_commit": "2e185a983e9c36b8ae478831f121df939c629a37",
+  "timing_protocol": "persistent-workers-memcmp-v2",
+  "campaign_completed": true,
+  "complete": false,
+  "cases": 8,
+  "complete_cases": 6,
+  "failed_cases": [
+    "file-aes128-core",
+    "file-aes128-profiles"
+  ],
+  "scheduled_samples": 384,
+  "published_samples": 288,
+  "comparisons": 32,
+  "qualified": false,
+  "decisions": {
+    "failed_capture": 8,
+    "inconclusive_controls": 2,
+    "inconclusive_interval": 2,
+    "pass_measured_profile": 20
+  },
+  "criteria": {
+    "minimum_pairs": 8,
+    "minimum_seconds": 5,
+    "maximum_native_cv": 0.05,
+    "minimum_throughput_low95": 0.98,
+    "maximum_process_cpu_per_byte_high95": 1.05
+  },
+  "results": [
+    {
+      "case": "file-none-core",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 12.696743769,
+      "native_cv": 0.03073277845217466,
+      "throughput": {
+        "ratio": 1.0291340765888275,
+        "low95": 0.997938438264081,
+        "high95": 1.067524712017807
+      },
+      "process_cpu_per_byte": {
+        "ratio": 0.9835061007653181,
+        "low95": 0.9567859514606851,
+        "high95": 1.0104344365802835
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "file-none-core",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 13.345811422,
+      "native_cv": 0.03073277845217466,
+      "throughput": {
+        "ratio": 1.0187197991338537,
+        "low95": 0.9855078056887404,
+        "high95": 1.0588477441512576
+      },
+      "process_cpu_per_byte": {
+        "ratio": 0.9920507308699223,
+        "low95": 0.9664627639716956,
+        "high95": 1.0147547097586305
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "file-none-core",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 17.588938727,
+      "native_cv": 0.0181854881186414,
+      "throughput": {
+        "ratio": 0.9978750968934926,
+        "low95": 0.984284004221304,
+        "high95": 1.0124540679836447
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.007489728112263,
+        "low95": 0.9922419301088011,
+        "high95": 1.0227696784407923
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "file-none-core",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 17.588938727,
+      "native_cv": 0.0181854881186414,
+      "throughput": {
+        "ratio": 1.0002476418064083,
+        "low95": 0.9792478484643676,
+        "high95": 1.0214431323083448
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0066568161388456,
+        "low95": 0.9870135562280379,
+        "high95": 1.0270941763183001
+      },
+      "decision": "inconclusive_interval"
+    },
+    {
+      "case": "file-none-profiles",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 12.613826634,
+      "native_cv": 0.056864801867945305,
+      "throughput": {
+        "ratio": 0.9712530067960495,
+        "low95": 0.9195716895856666,
+        "high95": 1.0237584817870935
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0225941774121845,
+        "low95": 0.9907618585116625,
+        "high95": 1.05810689708055
+      },
+      "decision": "inconclusive_controls"
+    },
+    {
+      "case": "file-none-profiles",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 12.613826634,
+      "native_cv": 0.056864801867945305,
+      "throughput": {
+        "ratio": 0.9952199985747685,
+        "low95": 0.947970296594401,
+        "high95": 1.0471435464601164
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0111337880968185,
+        "low95": 0.9803066316993407,
+        "high95": 1.0444278965725384
+      },
+      "decision": "inconclusive_controls"
+    },
+    {
+      "case": "file-none-profiles",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 15.773541418,
+      "native_cv": 0.01339175291953855,
+      "throughput": {
+        "ratio": 0.9955635399943487,
+        "low95": 0.9893453042673881,
+        "high95": 1.0045341912965968
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.014159599578877,
+        "low95": 1.0097017479006156,
+        "high95": 1.0175490032060623
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "file-none-profiles",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 15.772106959,
+      "native_cv": 0.01339175291953855,
+      "throughput": {
+        "ratio": 0.9980616803736994,
+        "low95": 0.9876498958206407,
+        "high95": 1.0120716724533483
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.009328566278677,
+        "low95": 1.0009675562450977,
+        "high95": 1.016424158147793
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "file-aes128-core",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-core",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-core",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-core",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-profiles",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-profiles",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-profiles",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "file-aes128-profiles",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 0,
+      "minimum_seconds": null,
+      "native_cv": null,
+      "throughput": null,
+      "process_cpu_per_byte": null,
+      "decision": "failed_capture"
+    },
+    {
+      "case": "live-none-core",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 10.241678496,
+      "native_cv": 0.0013314131224683935,
+      "throughput": {
+        "ratio": 1.000650184351453,
+        "low95": 0.9997343366029728,
+        "high95": 1.0015588583965351
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0225080438197365,
+        "low95": 1.011738014637966,
+        "high95": 1.0323620695095939
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-core",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 10.253969097,
+      "native_cv": 0.0013314131224683935,
+      "throughput": {
+        "ratio": 1.0006638099162815,
+        "low95": 0.9995151604581463,
+        "high95": 1.0018140660950923
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0196539113045309,
+        "low95": 1.0085921131422226,
+        "high95": 1.031826894389176
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-core",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 9.783030195,
+      "native_cv": 0.0019410624193181424,
+      "throughput": {
+        "ratio": 0.9988684949407947,
+        "low95": 0.9971513265055285,
+        "high95": 1.000850594775483
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0092329159645537,
+        "low95": 1.0028196643371006,
+        "high95": 1.0154590939259414
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-core",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 9.783030195,
+      "native_cv": 0.0019410624193181424,
+      "throughput": {
+        "ratio": 0.998506694673965,
+        "low95": 0.996693734776423,
+        "high95": 1.00045348273853
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0141753108065943,
+        "low95": 1.0110088492263196,
+        "high95": 1.017177010493103
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-profiles",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 10.239676836,
+      "native_cv": 0.0011816937197524702,
+      "throughput": {
+        "ratio": 0.9999881676198621,
+        "low95": 0.9991760471599909,
+        "high95": 1.0008701777928637
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0186695858521073,
+        "low95": 1.004185818984352,
+        "high95": 1.0328544030098985
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-profiles",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 10.239676836,
+      "native_cv": 0.0011816937197524702,
+      "throughput": {
+        "ratio": 1.0007422232616618,
+        "low95": 0.9997007292443768,
+        "high95": 1.0017584716321142
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0361053063129884,
+        "low95": 1.0269788723361875,
+        "high95": 1.0455113392365831
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-profiles",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 9.78293209,
+      "native_cv": 0.0015666156000997923,
+      "throughput": {
+        "ratio": 1.0001592824776964,
+        "low95": 0.9990729699172219,
+        "high95": 1.0011641906238986
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0189927806717611,
+        "low95": 1.0144214552944464,
+        "high95": 1.0237182184067573
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-none-profiles",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 9.782381134,
+      "native_cv": 0.0015666156000997923,
+      "throughput": {
+        "ratio": 0.9999876563799902,
+        "low95": 0.9986787619501665,
+        "high95": 1.001340424384005
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.021350846669539,
+        "low95": 1.0147908688841107,
+        "high95": 1.0279584975415474
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-core",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 10.335560269,
+      "native_cv": 0.0019002741054800238,
+      "throughput": {
+        "ratio": 0.9996687840401843,
+        "low95": 0.997649945854935,
+        "high95": 1.0016037519457575
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0156003754937306,
+        "low95": 0.9943583161537093,
+        "high95": 1.038290228166075
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-core",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 10.353922954,
+      "native_cv": 0.0019002741054800238,
+      "throughput": {
+        "ratio": 1.0001093771695833,
+        "low95": 0.9986768975033947,
+        "high95": 1.001722058723779
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0207602156412978,
+        "low95": 0.989484964979684,
+        "high95": 1.0507566109274593
+      },
+      "decision": "inconclusive_interval"
+    },
+    {
+      "case": "live-aes128-core",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 22.204337478,
+      "native_cv": 0.006095223121259418,
+      "throughput": {
+        "ratio": 0.9992231665810735,
+        "low95": 0.9958572089753563,
+        "high95": 1.0029509943570647
+      },
+      "process_cpu_per_byte": {
+        "ratio": 0.9995236487822861,
+        "low95": 0.9952310067661636,
+        "high95": 1.0036420979566003
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-core",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 22.107343977,
+      "native_cv": 0.006095223121259418,
+      "throughput": {
+        "ratio": 0.9967811599121896,
+        "low95": 0.989869877522099,
+        "high95": 1.003953178459608
+      },
+      "process_cpu_per_byte": {
+        "ratio": 0.9998961981676378,
+        "low95": 0.9904433389249242,
+        "high95": 1.0087142886195757
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-profiles",
+      "provider": "robotweax",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 10.383076767,
+      "native_cv": 0.0010543561505067917,
+      "throughput": {
+        "ratio": 0.9997900581040932,
+        "low95": 0.9990731902195495,
+        "high95": 1.000494214621011
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0182789666800345,
+        "low95": 0.999147447832981,
+        "high95": 1.0335349060774441
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-profiles",
+      "provider": "robotweax",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 10.383076767,
+      "native_cv": 0.0010543561505067917,
+      "throughput": {
+        "ratio": 0.9997124967499507,
+        "low95": 0.9988015414086732,
+        "high95": 1.0007074076729519
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0141566742533568,
+        "low95": 0.9978089631391458,
+        "high95": 1.0302998481389922
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-profiles",
+      "provider": "haivision",
+      "path": "module",
+      "pairs": 8,
+      "minimum_seconds": 21.785711002,
+      "native_cv": 0.018053558850961014,
+      "throughput": {
+        "ratio": 0.9950063443812838,
+        "low95": 0.9885880026540438,
+        "high95": 1.0009632890878821
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0042282437897245,
+        "low95": 0.9982474621709644,
+        "high95": 1.009973139895866
+      },
+      "decision": "pass_measured_profile"
+    },
+    {
+      "case": "live-aes128-profiles",
+      "provider": "haivision",
+      "path": "facade",
+      "pairs": 8,
+      "minimum_seconds": 21.785711002,
+      "native_cv": 0.018053558850961014,
+      "throughput": {
+        "ratio": 0.9979831043402945,
+        "low95": 0.9914472631612196,
+        "high95": 1.0036881852913135
+      },
+      "process_cpu_per_byte": {
+        "ratio": 1.0039758246609018,
+        "low95": 0.9979090769933785,
+        "high95": 1.0116094201996477
+      },
+      "decision": "pass_measured_profile"
+    }
+  ]
+}

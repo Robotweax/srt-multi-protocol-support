@@ -24,28 +24,40 @@ remain unsupported; they are not silently approximated.
 Tests cover all four provider pairings on IPv4, Live IPv6 pairings, simultaneous
 use of both providers, encrypted traffic, stale handles, error-buffer preservation,
 polling, close races, cancellation, facade transfers and export isolation. A
-direct-versus-module-versus-facade benchmark preserves the throughput
-requirement as a measurable gate. Both providers pass the measured local
-File/IPv4 gates after correcting a Haivision polling regression; see the
-[controlled File results](docs/validation/2026-11-16-controlled-throughput.md).
-[Controlled Live and encrypted File tests](docs/validation/2026-11-16-live-encrypted-throughput.md)
-also pass both gates for both providers and API paths: IPv4 loopback, 1,316-byte
-Live messages, and AES-128-CTR. Broader deployment profiles remain unqualified.
+direct-versus-module-versus-facade benchmark checks throughput and process CPU per
+byte against each provider's own native baseline.
+
+The latest [Linux Release results](docs/validation/2026-11-17-linux-release/README.md)
+cover eight File/Live, plaintext/AES-128 and core/profile combinations at source
+`2e185a9`, using timing protocol `persistent-workers-memcmp-v2`. Of 32 comparisons,
+20 pass, four are inconclusive and eight have unavailable qualification data from
+two incomplete encrypted File captures. Six complete cases provide 288 validated
+samples out of 384 scheduled trials. Overall performance qualification remains
+incomplete. The unchanged gates require eight pairs, five-second trials, native
+CV at most 5%, throughput lower 95% ratio at least 0.98 and process CPU/byte upper
+95% ratio at most 1.05. No confirmed regression is established by the valid
+comparisons; inconclusive and failed cases still prevent sign-off.
+
+The [Linux Debug timeout investigation](docs/validation/2026-11-17-debug-verifier.md)
+identified excessive sanitizer cost in the benchmark's byte verification loop.
+Independent full-body `memcmp` verification preserves integrity checks while
+bringing all 16 Linux Debug ASan/UBSan and all 16 Release checks within their
+existing deadlines. The benchmark verifier change leaves provider module bytes
+unchanged and adds 36 corruption canaries; sanitizer CI includes benchmark smoke
+coverage. The separate Release encrypted File capture timeouts remain unresolved.
 
 The [complete native feature audit and extension design](docs/design/extensions/README.md)
-records the native feature gaps and versioned design. The first stage now provides
+records native feature gaps and the versioned design. The first stage provides
 [immutable Live/File profiles and native telemetry](providers/EXTENSIONS.md) in both
 providers and the C++ facade; later extension features remain unsupported.
-The [initial validation report](docs/validation/2026-11-16-profiles-telemetry.md)
-records 17/20 passing performance comparisons. The [File investigation and fixed
-qualification campaign](docs/validation/2026-11-17-file-qualification.md) adds
-15/15 Release and sanitizer checks and 144 verified transfers after correcting
-benchmark timing. All eight new comparisons remain inconclusive because of native
-variability or confidence bounds. Full performance qualification remains incomplete;
-production I/O and close/cancellation protections are unchanged. Subsequent
-[polling review fixes](docs/validation/2026-11-17-polling-review-fixes.md) address
-ready-event starvation and facade registration cleanup; their new module bytes
-require fresh performance qualification.
+[Polling review fixes](docs/validation/2026-11-17-polling-review-fixes.md) address
+ready-event starvation and facade registration cleanup and are included in the
+latest measured source. Earlier [controlled File](docs/validation/2026-11-16-controlled-throughput.md),
+[Live/encrypted](docs/validation/2026-11-16-live-encrypted-throughput.md),
+[profiles/telemetry](docs/validation/2026-11-16-profiles-telemetry.md) and
+[File investigation](docs/validation/2026-11-17-file-qualification.md) reports remain
+historical evidence for their stated source revisions and timing protocols; their
+samples are not pooled with the latest results.
 
 ## Build and check
 
