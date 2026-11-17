@@ -1,0 +1,20 @@
+{
+  "profile": {
+    "blocks": 8,
+    "chunk_bytes": 32768,
+    "encryption": "aes-128-ctr",
+    "id": "file-aes128-profiles",
+    "mib": 4096,
+    "mode": "file",
+    "probe_calls": 20000,
+    "profile_setup": true,
+    "timing_protocol": "persistent-workers-memcmp-v2",
+    "wait": "poll",
+    "warmup_mib": 1024
+  },
+  "qualification": "not_qualified",
+  "reason": "incomplete-or-inconsistent-capture",
+  "schema": 2,
+  "source_commit": "2e185a983e9c36b8ae478831f121df939c629a37",
+  "status": "failed"
+}

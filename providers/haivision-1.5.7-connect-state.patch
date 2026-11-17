@@ -1,0 +1,22 @@
+--- a/srtcore/core.cpp
++++ b/srtcore/core.cpp
+@@ -5102,9 +5102,6 @@
+         return CONN_REJECT;
+     }
+ 
+-    // And, I am connected too.
+-    m_bConnecting = false;
+-
+     // The lock on m_ConnectionLock should still be applied, but
+     // the socket could have been started removal before this function
+     // has started. Do a sanity check before you continue with the
+@@ -5131,6 +5128,9 @@
+     // should be prepared to resend them (as every packet can be lost
+     // on UDP), but it's kinda overkill when we have them already and
+     // can dispatch them.
++
++    // SrtMux 1.5.7 compatibility fix: publish connected before retiring connecting.
++    m_bConnecting = false;
+ 
+     // Remove from rendezvous queue (in this particular case it's
+     // actually removing the socket that undergoes asynchronous HS processing).

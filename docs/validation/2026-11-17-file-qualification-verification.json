@@ -1,0 +1,58 @@
+{
+  "plan_source_hashes_match": true,
+  "changed_files_from_previous_source_manifest": [
+    "benchmarks/throughput.cpp",
+    "benchmarks/compare.py"
+  ],
+  "captures": {
+    "core": {
+      "capture_complete": true,
+      "all_binary_hashes_match": true,
+      "provider_module_hashes_match_previous_candidate": true,
+      "samples": 72,
+      "measured_bytes": 309237645312,
+      "decisions": {
+        "robotweax": {
+          "module": "inconclusive_controls",
+          "facade": "inconclusive_controls"
+        },
+        "haivision": {
+          "module": "inconclusive_interval",
+          "facade": "inconclusive_interval"
+        }
+      }
+    },
+    "profiles": {
+      "capture_complete": true,
+      "all_binary_hashes_match": true,
+      "provider_module_hashes_match_previous_candidate": true,
+      "samples": 72,
+      "measured_bytes": 309237645312,
+      "decisions": {
+        "robotweax": {
+          "module": "inconclusive_controls",
+          "facade": "inconclusive_controls"
+        },
+        "haivision": {
+          "module": "inconclusive_controls",
+          "facade": "inconclusive_controls"
+        }
+      }
+    }
+  },
+  "release_ctest": {
+    "passed": 15,
+    "total": 15
+  },
+  "asan_ubsan_ctest": {
+    "passed": 15,
+    "total": 15
+  },
+  "native_audit": "pass",
+  "post_capture_host": {
+    "model": "MacBookAir10,1",
+    "cpu_count": 8,
+    "thermal_query": "No thermal warning level, performance warning level or CPU power status recorded; not a capture-time frequency measurement"
+  },
+  "qualification": "incomplete"
+}

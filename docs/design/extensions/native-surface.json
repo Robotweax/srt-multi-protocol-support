@@ -1,0 +1,2568 @@
+{
+  "schema": 1,
+  "robotweax_revision": "29c741d35f89a412926c374d6ccb15fa1270833c",
+  "haivision_revision": "899348d8318eb9a3c5a5b6ec43c4a1114288773a",
+  "wrapper_revision": "8f3579c",
+  "scope": "All public exported names, all declared socket options including build-conditional branches, common message/statistics fields, all uninstalled source-tree C++ headers. Presence is not support or interoperability.",
+  "sources": [
+    {
+      "provider": "robotweax",
+      "path": "include/srt/srt.h",
+      "sha256": "6302e3d7ca20e9f1755539549835028ae3515520106b1e8b4d90bdca6175978f"
+    },
+    {
+      "provider": "robotweax",
+      "path": "include/robotweax_srt.h",
+      "sha256": "b293881d44f19011e726b014ebf530b49c535ef6c6753d2a7e48a4bdccb5e6ce"
+    },
+    {
+      "provider": "robotweax",
+      "path": "cmake/public-symbols.txt",
+      "sha256": "be1535a1a3f77aef7bfd162282cd32c48bde658d80540e92dea6c7547727f7a4"
+    },
+    {
+      "provider": "robotweax",
+      "path": "compat/srt-1.5.7-api.json",
+      "sha256": "84283846e76cd4addbe1d6e7d4ce7d9054154c96bf2a193f4011dd0a993a964d"
+    },
+    {
+      "provider": "robotweax",
+      "path": "CMakeLists.txt",
+      "sha256": "d489fcf1161d471c9fbdb6ce2e01dbdcdb7079d213b4f269c37034febabad6f9"
+    },
+    {
+      "provider": "haivision",
+      "path": "srtcore/srt.h",
+      "sha256": "2ac59d3cdad854cd0098a54429bea9e0eccaeecf03515106be729ba61c9aa9dd"
+    }
+  ],
+  "functions": [
+    {
+      "name": "robotweax_srt_connect_group_acquire",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "udp_adoption",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_error_string",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_group_path_data_v1",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_group_send_state_v1",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_inspect_packet",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_options_create",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_options_destroy",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_options_get",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_options_set",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "toolkit",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_rtt_data_v1",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_standby_rtt_data_v1",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "srt_accept",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "partial_ordinary_only",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_accept_bond",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_addlogfa",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_bind",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "partial_ordinary_only",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_bind_acquire",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "udp_adoption",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_bistats",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_bstats",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_cleanup",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_clearlasterror",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_clock_type",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "replaced_by_provider_metadata",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_close",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "partial_abort_only",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_config_add",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_connect",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "partial_ordinary_only",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_connect_bind",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_connect_callback",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_connect_debug",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_connect_group",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_connection_time",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_create_config",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_create_group",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_create_socket",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_delete_config",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_dellogfa",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_add_ssock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_add_usock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_clear_usocks",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_create",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_release",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_remove_ssock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_remove_usock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_set",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_update_ssock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_update_usock",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_epoll_uwait",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_epoll_wait",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "polling",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_getlasterror",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_getlasterror_str",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_getpeername",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_getrejectreason",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_getsndbuffer",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_getsockflag",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "partial_typed_subset",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_getsockname",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_getsockopt",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_getsockstate",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_getversion",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "replaced_by_provider_metadata",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_group_data",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_groupof",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_listen",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_listen_callback",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_msgctrl_default",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_msgctrl_init",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_prepare_endpoint",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_recv",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_recvfile",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_recvmsg",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_recvmsg2",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_rejectreason_msg",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_rejectreason_str",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_rendezvous",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "rendezvous",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_resetlogfa",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_send",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_sendfile",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "intentionally_outside_transport_core",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_sendmsg",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_sendmsg2",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "io",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_setlogflags",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_setloghandler",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_setloglevel",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "logging",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_setrejectreason",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_setsockflag",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "partial_typed_subset",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_setsockopt",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "srt_socket",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_startup",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_strerror",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "srt_time_now",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "diagnostics",
+      "wrapper": "internal_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    }
+  ],
+  "aliases": [
+    {
+      "name": "srt_bind_peerof",
+      "maps_to": "srt_bind_acquire",
+      "wrapper": "unexposed"
+    }
+  ],
+  "options": [
+    {
+      "name": "SRTO_BINDTODEVICE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_CONGESTION",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "profiles",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_CONNTIMEO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_CRYPTOMODE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "excluded"
+    },
+    {
+      "name": "SRTO_DRIFTTRACER",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_ENFORCEDENCRYPTION",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "fixed_nonblocking_abort_enforced",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_EVENT",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_FC",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_GROUPCONNECT",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_GROUPMINSTABLETIMEO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_GROUPTYPE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_INPUTBW",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_IPTOS",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_IPTTL",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_IPV6ONLY",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_ISN",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_KMPREANNOUNCE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_KMREFRESHRATE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_KMSTATE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_LATENCY",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_LINGER",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "fixed_nonblocking_abort_enforced",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_LOSSMAXTTL",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_MAXBW",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_MAXREXMITBW",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "excluded"
+    },
+    {
+      "name": "SRTO_MESSAGEAPI",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "profiles",
+      "wrapper": "partial_live_file_only",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_MININPUTBW",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_MINVERSION",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_MSS",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_NAKREPORT",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_OHEADBW",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PACKETFILTER",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "recovery",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_PASSPHRASE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PAYLOADSIZE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "profiles",
+      "wrapper": "partial_live_file_only",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PBKEYLEN",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PEERIDLETIMEO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PEERLATENCY",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_PEERVERSION",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVBUF",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVDATA",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVKMSTATE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "partial_info_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVLATENCY",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVSYN",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "fixed_nonblocking_abort_enforced",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RCVTIMEO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RENDEZVOUS",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "rendezvous",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_RETRANSMITALGO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_REUSEADDR",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_ACP1_ACTIVE",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "experimental",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_ACP1_REQUIRED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "experimental",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_CRYPTO_BACKEND",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "identity",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_FECPOLICY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "recovery",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_GROUPDOMAIN",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_IDENTITY_ADVERTISEMENT",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "identity",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_COORDINATED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_GROUP",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_IFACE",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_INDEPENDENT",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_REXMIT_THRESHOLD",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_SOURCE",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_STATS",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MCAST_TTL",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_MULTICAST",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "multicast",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PATHID",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PATHID_POLICY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PATHID_REQUIRED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERGROUP",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEER_HANDSHAKE",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "admission",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEER_IDENTITY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "identity",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_SESSIONAUTH",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_STANDBYRTT_POLICY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_STANDBYRTT_REQUIRED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_TAILPROBE",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "recovery",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_VERSION",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "identity",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_SENDER",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDBUF",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDDATA",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDDROPDELAY",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDKMSTATE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "partial_info_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDSYN",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "fixed_nonblocking_abort_enforced",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_SNDTIMEO",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_STATE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "partial_info_mapping",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_STREAMID",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "core",
+      "wrapper": "typed_config",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_TLPKTDROP",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_TRANSTYPE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "profiles",
+      "wrapper": "partial_live_file_only",
+      "native_robotweax_manifest_status": "partial"
+    },
+    {
+      "name": "SRTO_TSBPDMODE",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_UDP_RCVBUF",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_UDP_SNDBUF",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    },
+    {
+      "name": "SRTO_VERSION",
+      "robotweax_declared": true,
+      "haivision_declared": true,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "implemented"
+    }
+  ],
+  "fields": {
+    "SRT_MSGCTRL": [
+      {
+        "name": "flags",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msgttl",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "inorder",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "boundary",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "srctime",
+        "wrapper": "source_time_only"
+      },
+      {
+        "name": "pktseq",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msgno",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "grpdata",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "grpdata_size",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "CBytePerfMon": [
+      {
+        "name": "msTimeStamp",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndLossTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvLossTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRetransTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentACKTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvACKTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentNAKTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvNAKTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "usSndDurationTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndDropTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvDropTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvUndecryptTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSentTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRecvTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvLossTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRetransTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSndDropTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvDropTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvUndecryptTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSent",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecv",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndLoss",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvLoss",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRetrans",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvRetrans",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentACK",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvACK",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentNAK",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvNAK",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mbpsSendRate",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mbpsRecvRate",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "usSndDuration",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktReorderDistance",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvAvgBelatedTime",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvBelated",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndDrop",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvDrop",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvUndecrypt",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSent",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRecv",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvLoss",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRetrans",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSndDrop",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvDrop",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvUndecrypt",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "usPktSndPeriod",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktFlowWindow",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktCongestionWindow",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktFlightSize",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msRTT",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mbpsBandwidth",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteAvailSndBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteAvailRcvBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mbpsMaxBW",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteMSS",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSndBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msSndBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msSndTsbPdDelay",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRcvBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msRcvBuf",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "msRcvTsbPdDelay",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndFilterExtraTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterExtraTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterSupplyTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterLossTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSndFilterExtra",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterExtra",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterSupply",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRcvFilterLoss",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktReorderTolerance",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentUniqueTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvUniqueTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSentUniqueTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRecvUniqueTotal",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktSentUnique",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "pktRecvUnique",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteSentUnique",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "byteRecvUnique",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_PEER_HANDSHAKE_V1": [
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "available",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "srt_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "flags",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "receiver_delay_milliseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "sender_delay_milliseconds",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_PEER_IDENTITY_V1": [
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "available_fields",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "name_length",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "release_length",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "name",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "release",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "padding",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "reserved",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_RTTDATA_V1": [
+      {
+        "name": "struct_size",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "flags",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "last_update_source",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "smoothed_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "variation_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "local_ackack_age_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "peer_estimate_age_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "reserved",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_STANDBY_RTTDATA_V1": [
+      {
+        "name": "struct_size",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "flags",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "outcome",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "rtt_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "age_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "samples",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "reserved",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_GROUP_SEND_STATE_V1": [
+      {
+        "name": "struct_size",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "state",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "reserved0",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "active_member",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "probe_member",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "group_generation",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "active_generation",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "probe_generation",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "authority_revision",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "active_age_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "probe_age_microseconds",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "reserved",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_GROUP_PATHDATA_V1": [
+      {
+        "name": "member_id",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "flags",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "identifier_length",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "identifier",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "ROBOTWEAX_SRT_MCAST_STATS_V1": [
+      {
+        "name": "abi_version",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "member_count",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mcast_pkt_sent",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mcast_byte_sent",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mcast_pkt_rexmit",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "unicast_rexmit_skipped",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mcast_pkt_received",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "mcast_pkt_filtered",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "SRT_SOCKGROUPDATA": [
+      {
+        "name": "id",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "peeraddr",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "sockstate",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "weight",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "memberstate",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "result",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "token",
+        "wrapper": "unexposed_native_field"
+      }
+    ],
+    "SRT_SOCKGROUPCONFIG": [
+      {
+        "name": "id",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "srcaddr",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "peeraddr",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "weight",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "config",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "errorcode",
+        "wrapper": "unexposed_native_field"
+      },
+      {
+        "name": "token",
+        "wrapper": "unexposed_native_field"
+      }
+    ]
+  },
+  "source_cpp_headers": [
+    {
+      "path": "include/robotweax/srt/codec.hpp",
+      "sha256": "d5e68b13a28cc7c33b30a1ca1ef3a944a67e6ad09787e6b15a50c37fb52dbe05",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "DecodeResult",
+        "EncodeResult",
+        "ProtectedPayloadView",
+        "MutableProtectedPayloadView",
+        "ProtectedPayloadDecodeResult",
+        "ProtectedPayloadEncodeResult"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/connection_group.hpp",
+      "sha256": "d56aceec3981e6ed4b78bb1cc34e80537a47fd21f4a5ca73423d1b703f151187",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "GroupType",
+        "GroupMembership",
+        "GroupMembershipDecodeResult",
+        "GroupMembershipValidation",
+        "GroupMembershipPolicy",
+        "MulticastDispatch",
+        "MulticastDispatchDecodeResult",
+        "MulticastSourceKind",
+        "MulticastSource",
+        "MulticastSourceDecodeResult"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/control.hpp",
+      "sha256": "eabe2ae822793d2491f27bff6e2613c650cef1031ab181ad2671e9817cac2c14",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "AcknowledgementKind",
+        "Acknowledgement",
+        "AcknowledgementResult",
+        "ControlEncodeResult",
+        "DropRequest",
+        "DropRequestResult",
+        "LossRangeResult"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/crypto.hpp",
+      "sha256": "36434e7b9ee1d0bb06e24399d197737745878f856da70f8b1e41a3fe0c09895b",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "KeyMaterialCipher",
+        "KeyMaterialAuthentication",
+        "CryptoMode",
+        "CryptoSuite",
+        "CryptoPayloadBudget",
+        "CryptoNegotiationContext",
+        "CryptoModeSelection",
+        "StreamEncapsulation",
+        "CryptoState",
+        "KeyMaterialView",
+        "KeyMaterialDecodeResult",
+        "KeyMaterialEncodeResult",
+        "CryptoConfiguration",
+        "KeyMaterialBuffer",
+        "SharedTransmitKeySchedule",
+        "CryptoSession"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/crypto_provider.hpp",
+      "sha256": "711f793c37a20cda845e5e6e8b852607fa41caad90aca25aeba51663bab045fe",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "PayloadCipher",
+        "AuthenticatedPayloadCipher",
+        "CryptoProvider"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/detail/peer_drop_queue.hpp",
+      "sha256": "07aa05d3b02e5b39f978b630b26fb0d51f0b77248fdc79de52b35ec8fee8615c",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "PendingPeerDrop",
+        "PeerDropQueue"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/detail/range_drop_queue.hpp",
+      "sha256": "1379f5dcaafa6b3f1a38ef8e366b113f5db9b13c63de5363789206e8ad4627b8",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "RangeDropQueue"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/error.hpp",
+      "sha256": "a62de5c3c87b52942955427eeb49a24198b815d45339f4dfb8a70b60bc3876fe",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "Error"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/fec.hpp",
+      "sha256": "a8e853182fa1855f65b730db63480059996644693820c7b01442707deb9d2a81",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "FecResourceUsage",
+        "FecResourceEstimate",
+        "RowFecEncoder",
+        "RowFecReceiveResult",
+        "FecRecoveryValidator",
+        "RowFecDecoder",
+        "ColumnFecEncoder",
+        "ColumnFecDecoder",
+        "MatrixFecEncoder",
+        "MatrixFecReceiveResult",
+        "MatrixFecDecoder"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/file.hpp",
+      "sha256": "fce6a8afa60f09e43d17b1f629df4584313048cb245e4bed65e4131fa02f0745",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "FileRateController"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/handshake.hpp",
+      "sha256": "c0bc110874f0e954f1d88e75d75ecb7e79061b0dbb47252a2258e5f3e4265771",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "HandshakeRequest",
+        "Handshake",
+        "HandshakeDecodeResult",
+        "HandshakePayloadDecodeResult",
+        "HandshakeEncodeResult",
+        "ConnectionRole",
+        "HandshakeState",
+        "HandshakeActionKind",
+        "HandshakeAction",
+        "HandshakeActions",
+        "HandshakeMessage",
+        "HandshakeMachine"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/handshake_datagram.hpp",
+      "sha256": "432590a6f19539ebf73fd8d545848b98d4280dd90ad20862afba0189622b0a66",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "HandshakeDatagramDecodeResult",
+        "HandshakeDatagramEncodeResult"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/handshake_extensions.hpp",
+      "sha256": "8708cbc62fcc1dee5724e296b7a253e595a50c86a9f240a7ad27fb7a0a6a5a9d",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "HandshakeExtensionType",
+        "CongestionController",
+        "HandshakeExtensionFlag",
+        "PathIdentifier",
+        "PathIdentifierResult",
+        "HandshakeExtensionParameters",
+        "NegotiatedLiveOptions",
+        "HandshakeExtensionView",
+        "ExtensionResult",
+        "ExtensionEncodeResult",
+        "HandshakeParametersResult",
+        "ExtensionTextResult",
+        "StreamId"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/implementation_identity.hpp",
+      "sha256": "e65c0ff756086d1373e97c3b739dae1b4d3448375a1668a6716f936643830c3b",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "ImplementationIdentity"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/live.hpp",
+      "sha256": "9d4de879cd2d4ae93ee1151abda1f05d65e468c3631205bcd69e57f83600fd3d",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "ArrivalRates",
+        "ArrivalRateEstimator",
+        "LiveRateController",
+        "DriftUpdate",
+        "DriftSampler"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/packet.hpp",
+      "sha256": "df82f1da89e251a0af15c9ab5a94221558b3f3ffceb9e3c60272409c48b5458f",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "PacketKind",
+        "MessageBoundary",
+        "EncryptionKey",
+        "ControlType",
+        "DataHeader",
+        "ControlHeader",
+        "PacketView",
+        "MutablePacketView"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/packet_filter.hpp",
+      "sha256": "48c73904809e42cac6cc11bb547527eb7f2fb5d2d1f1848fdf710c25e6ae244d",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "FecControlHeader",
+        "FecControlDecodeResult",
+        "PacketFilterLayout",
+        "PacketFilterArqLevel",
+        "PacketFilterConfiguration",
+        "PacketFilterConfigurationResult",
+        "PacketFilterReceiveDisposition",
+        "PacketFilterPolicy"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/parity_policy.hpp",
+      "sha256": "074b2533a55d2191ceb6d6cbabc2827e7db8bd562772c501aa0b796977d2dd40",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "Mode",
+        "Level",
+        "Kind",
+        "Constants",
+        "Inputs"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/payload_pool.hpp",
+      "sha256": "026a425a39f2964d45d131863489bd19b1c74a37858273ab258a1c639c11276f",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "PayloadStorageDeleter",
+        "PayloadPool"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/receive_buffer.hpp",
+      "sha256": "fa894b2f1ec22034e2d4b08609f0bdec75d19ce5f67c227ade8487562b7af9c5",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "ReceiveBufferTestAccess",
+        "ReceiveInsertResult",
+        "ReceivedMessageResult",
+        "BufferedMessageInfo",
+        "BufferedMessageCopy",
+        "BufferedMessageCopies",
+        "ReceiveBuffer"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/reliability.hpp",
+      "sha256": "df27132a79d824f7ee3c5ccf5216ba591f65c2dbb50a70ef050f509bd4b2cb46",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "SequenceRange",
+        "ReceiveStatus",
+        "ReceiveDecision",
+        "ReceiveWindow",
+        "ReceiveLossRemoval",
+        "ReceiveLossList"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/rendezvous.hpp",
+      "sha256": "08b929110e7aecad035bab66e965fbe80a0ef51d0a419e642107578f0ac60801",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "RendezvousRole",
+        "RendezvousState",
+        "RendezvousHandshakeMachine"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/rtt.hpp",
+      "sha256": "2bbcacd90417e0351d3b085475109dea7c628489c9f845bf923b7b289288c039",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "AcknowledgementNumberGenerator",
+        "AcknowledgementTracker",
+        "RttEstimator"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/send_buffer.hpp",
+      "sha256": "beebc495bdd008fc4f5dc0a58889568834350bf9f997f36b9d385ff25bbc738c",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "OutboundPacket",
+        "GroupOriginalDelivery",
+        "SendDropResult",
+        "StreamEnqueueResult",
+        "SendBuffer"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/sequence.hpp",
+      "sha256": "6df78b3ed294135acd8f4fc3fd2cd727fa7996454f55856382c8eedbaa26209d",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "SequenceNumber",
+        "PacketTimestamp"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/session.hpp",
+      "sha256": "b726634cd31d9ade9c2a4da527d8748c126bd894a2784c5c2fd097c5c4bed62b",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "ControllerInstance",
+        "ControllerDescriptor",
+        "ControllerEventKind",
+        "SessionControllerDeleter",
+        "SessionTestAccess",
+        "ReliabilityActionKind",
+        "SenderDropReason",
+        "ReliabilityAction",
+        "ReliabilityActions",
+        "ReliabilityProcessResult",
+        "ReliabilityReceiveContext",
+        "ReliabilitySession"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/session_authentication.hpp",
+      "sha256": "f24fe9d9dfd222f2bd3ebf41dac1c518595b73ce20a904081a6cd395e0a4a7c6",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "SessionAuthenticationParameters",
+        "SessionAuthentication"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/simulation.hpp",
+      "sha256": "539a3086063dcb4132d0766c9fd577bcb587cf214662c319b0a824a135fd59d8",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "NetworkConfiguration",
+        "Datagram",
+        "Network"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/socket_options.hpp",
+      "sha256": "4cf3e1d487289ce4a8b27fcbbe949a5c1f14fedbd627e80b73656f5fbffcfff0",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "TransmissionType",
+        "FecPolicy",
+        "SocketOption",
+        "SocketOptionResult",
+        "SocketOptions"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/standby_rtt.hpp",
+      "sha256": "a0a261b90fca66e1de11be64ad86363c1b6195fd3e9f23f9c6a5ef511ad0db72",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "StandbyRttIdentity",
+        "StandbyRttIdentityResult",
+        "StandbyRttKind",
+        "StandbyRttMessage",
+        "StandbyRttDecodeResult",
+        "StandbyRttOutcome",
+        "StandbyRttSnapshot",
+        "StandbyRttMeasurement",
+        "StandbyRttBudget"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/timing.hpp",
+      "sha256": "d88cd9a7af87ba5ac5e64144b4389b6e42e79b568d089fccf46c023ed1e21fb0",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "TsbpdClockState",
+        "ConnectionRuntime",
+        "TimerActionKind",
+        "TimerActions",
+        "ControlTimerScheduler",
+        "SenderRetransmissionTimer",
+        "PaceDecision",
+        "PacketPacer",
+        "TimerWakeMonitor",
+        "TsbpdClock"
+      ]
+    },
+    {
+      "path": "include/robotweax/srt/udp.hpp",
+      "sha256": "953d314598a6a266f665957d6aa89e1a7af905d412336a3a0b87f8d02c85d27e",
+      "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
+      "declarations": [
+        "IpAddressFamily",
+        "IpEndpoint",
+        "UdpIoResult",
+        "EndpointResult",
+        "UdpWaitResult",
+        "UdpIntegerOptionResult",
+        "UdpDeviceOptionResult",
+        "UdpSocket"
+      ]
+    }
+  ],
+  "transport_profiles": [
+    {
+      "native": "SRTT_LIVE",
+      "wrapper": "implemented_live_messages"
+    },
+    {
+      "native": "SRTT_FILE",
+      "wrapper": "implemented_file_stream"
+    },
+    {
+      "native": "SRTT_SENSOR",
+      "wrapper": "unexposed"
+    },
+    {
+      "native": "SRTT_CONTROL",
+      "wrapper": "unexposed"
+    }
+  ],
+  "constant_groups": [
+    {
+      "name": "version_macros",
+      "status": "implemented"
+    },
+    {
+      "name": "socket_and_group_masks",
+      "status": "implemented",
+      "scope": "SRT_INVALID_SOCK=-1, platform-correct SYSSOCKET_INVALID, SRTGROUP_MASK, and SRT_ERROR"
+    },
+    {
+      "name": "live_payload_and_latency_defaults",
+      "status": "implemented"
+    },
+    {
+      "name": "message_control_sentinels",
+      "status": "implemented"
+    },
+    {
+      "name": "sendfile_and_recvfile_block_sizes",
+      "status": "implemented"
+    },
+    {
+      "name": "clock_type_constants",
+      "status": "implemented"
+    },
+    {
+      "name": "epoll_constants",
+      "status": "implemented"
+    },
+    {
+      "name": "logging_levels_flags_and_functional_areas",
+      "status": "implemented",
+      "scope": "syslog-compatible levels, four v1.5.7 formatting flags, and exact public functional-area values through SRT_LOGFA_LASTNONE=63"
+    },
+    {
+      "name": "group_and_bonding_constants",
+      "status": "implemented",
+      "scope": "SRTGROUP_MASK and SRT_GFLAG_SYNCONMSG plus exact v1.5.7 group/member enum values; the flag is ABI-visible but the pinned compatibility profile rejects it exactly because v1.5.7 does not implement message-number synchronization"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+--- a/srtcore/core.cpp
++++ b/srtcore/core.cpp
+@@ -2182,6 +2182,10 @@
+         // and the appropriate message must be constructed for sending.
+         // No further processing required
+         {
++            // SrtMux 1.5.7 compatibility fix: serialize KM processing with closeInternal.
++            ScopedLock crypto_lifetime(m_ConnectionLock);
++            if (m_bClosing || !m_pCryptoControl)
++                return true;
+             uint32_t srtdata_out[SRTDATA_MAXSIZE];
+             size_t   len_out = 0;
+ 
+@@ -2222,6 +2226,10 @@
+ 
+     case SRT_CMD_KMRSP:
+     {
++        // SrtMux 1.5.7 compatibility fix: serialize KM processing with closeInternal.
++        ScopedLock crypto_lifetime(m_ConnectionLock);
++        if (m_bClosing || !m_pCryptoControl)
++            return true;
+         // KMRSP doesn't expect any following action
+         m_pCryptoControl->processSrtMsg_KMRSP(srtdata, len, m_uPeerSrtVersion, false);
+         return true; // nothing to do
