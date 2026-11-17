@@ -127,7 +127,10 @@ vendor scheduling still determines wake latency. Wait translates at most 256
 ready events per batch using fixed scratch storage. Finite waits accept 0 through
 INT_MAX milliseconds; `SRTM_WAIT_FOREVER`/`InfiniteWait` is unbounded. Wake is sticky,
 coalesces and wins over readiness. Closed registrations remain ERROR/STATE-ready
-until removed or their object is released. Returned tokens may already be stale;
+until removed or their object is released. Closed readiness rotates across bounded
+batches and alternates priority with native readiness, including one-slot waits.
+The C++ facade retires registrations when either wrapper is destroyed; removing
+or updating such a retired token reports an unknown registration. Returned tokens may already be stale;
 applications must check them against their own registration state. Poller release
 with active calls initiates cancellation and returns Busy; join calls and retry.
 Shutdown wakes both providers independently. No library unload occurs during I/O.

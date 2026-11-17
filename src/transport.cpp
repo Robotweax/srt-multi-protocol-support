@@ -46,6 +46,7 @@ struct Context {
     const srtm_provider_api_v1& api;
     ProviderInfo info;
     srtm_runtime* runtime = nullptr;
+    std::mutex registration_mutex; // Cold-path facade registration lifetimes only.
     const srtmx_profiles_api_v1* profiles = nullptr;
     const srtmx_telemetry_api_v1* telemetry = nullptr;
     void load_extensions() {
@@ -112,12 +113,24 @@ Result<srtm_config_v1> config(const TransportConfig& input) {
 constexpr const char* features[] = {"core.ipv4", "core.ipv6", "core.live_messages", "core.file_stream", "crypto.aes_ctr",
     "core.admission", "core.polling", "core.statistics", "transport.rendezvous", "recovery.fec", "groups.broadcast",
     "groups.backup", "crypto.aes_gcm", "transport.native_udp_adoption", "groups.admission_domains", "telemetry.rtt_observation"};
+struct OwnedObject;
+// Both directions are guarded by Context::registration_mutex. Impl addresses
+// stay stable across wrapper moves; neither side owns the other. Destruction
+// removes reverse links before either Impl can disappear.
+struct Registrations {
+    std::unordered_map<uint64_t, OwnedObject*> objects;
+};
 struct OwnedObject {
     std::shared_ptr<Context> context;
     srtm_handle handle;
+    std::unordered_map<Registrations*, uint64_t> registrations;
     OwnedObject(std::shared_ptr<Context> c, srtm_handle h) : context(std::move(c)), handle(h) {}
     ~OwnedObject() {
         if (!handle) return;
+        {
+            std::lock_guard lock(context->registration_mutex);
+            for (const auto& [poller, token] : registrations) poller->objects.erase(token);
+        }
         context->api.object_close(context->runtime, handle, SRTM_CLOSE_ABORT, 0, nullptr);
         context->api.object_release(context->runtime, handle, nullptr);
     }
@@ -171,23 +184,34 @@ struct Provider::Impl { std::shared_ptr<Context> context; explicit Impl(std::sha
 struct Poller::Impl {
     std::shared_ptr<Context> context;
     srtm_handle handle;
-    std::mutex mutex;
-    std::unordered_map<uint64_t, srtm_handle> registrations;
+    Registrations registrations;
     uint64_t next_token = 1;
     std::array<srtm_event_v1, 256> events{};
     std::atomic_flag waiting = ATOMIC_FLAG_INIT;
     Impl(std::shared_ptr<Context> c, srtm_handle h) : context(std::move(c)), handle(h) { for (auto& e : events) e.struct_size = sizeof(e); }
-    ~Impl() { context->api.poller_release(context->runtime, handle, nullptr); }
-    Result<Registration> add(const OwnedObject& object, Interest interests) {
+    ~Impl() {
+        {
+            std::lock_guard lock(context->registration_mutex);
+            for (const auto& [token, object] : registrations.objects) {
+                (void)token;
+                object->registrations.erase(&registrations);
+            }
+        }
+        context->api.poller_release(context->runtime, handle, nullptr);
+    }
+    Result<Registration> add(OwnedObject& object, Interest interests) {
         if (object.context.get() != context.get()) return local_error(ErrorCategory::invalid_argument, "poller.add", "Objects and poller must use the same provider context");
-        std::lock_guard lock(mutex);
-        for (const auto& [token, h] : registrations) { (void)token; if (h == object.handle) return local_error(ErrorCategory::invalid_argument, "poller.add", "Object already registered"); }
+        std::lock_guard lock(context->registration_mutex);
+        if (object.registrations.contains(&registrations)) return local_error(ErrorCategory::invalid_argument, "poller.add", "Object already registered");
         if (!next_token) return local_error(ErrorCategory::resource, "poller.add", "Registration token exhausted");
         const auto token = next_token++;
-        registrations.emplace(token, object.handle);
+        object.registrations.emplace(&registrations, token);
+        try { registrations.objects.emplace(token, &object); }
+        catch (...) { object.registrations.erase(&registrations); throw; }
         auto d = record<srtm_error_v1>();
         if (context->api.poller_register(context->runtime, handle, object.handle, static_cast<uint32_t>(interests), token, &d) != SRTM_OK) {
-            registrations.erase(token); return rich_error(context.get(), "poller.add", d);
+            registrations.objects.erase(token); object.registrations.erase(&registrations);
+            return rich_error(context.get(), "poller.add", d);
         }
         return Registration{token};
     }
@@ -464,18 +488,19 @@ std::variant<Connection, WouldBlock, Error> Listener::accept() {
 Result<Registration> Poller::add(const Connection& c, Interest interest) { return impl_->add(*c.impl_, interest); }
 Result<Registration> Poller::add(const Listener& l, Interest interest) { return impl_->add(*l.impl_, interest); }
 Result<Success> Poller::update(Registration registration, Interest interests) {
-    std::lock_guard lock(impl_->mutex); auto found = impl_->registrations.find(registration.id);
-    if (found == impl_->registrations.end()) return local_error(ErrorCategory::invalid_argument, "poller.update", "Unknown registration");
+    std::lock_guard lock(impl_->context->registration_mutex); auto found = impl_->registrations.objects.find(registration.id);
+    if (found == impl_->registrations.objects.end()) return local_error(ErrorCategory::invalid_argument, "poller.update", "Unknown registration");
     auto& c = *impl_->context; auto d = record<srtm_error_v1>();
-    if (c.api.poller_register(c.runtime, impl_->handle, found->second, static_cast<uint32_t>(interests), registration.id, &d) != SRTM_OK) return rich_error(&c, "poller.update", d);
+    if (c.api.poller_register(c.runtime, impl_->handle, found->second->handle, static_cast<uint32_t>(interests), registration.id, &d) != SRTM_OK) return rich_error(&c, "poller.update", d);
     return Success{};
 }
 Result<Success> Poller::remove(Registration registration) {
-    std::lock_guard lock(impl_->mutex); auto found = impl_->registrations.find(registration.id);
-    if (found == impl_->registrations.end()) return local_error(ErrorCategory::invalid_argument, "poller.remove", "Unknown registration");
+    std::lock_guard lock(impl_->context->registration_mutex); auto found = impl_->registrations.objects.find(registration.id);
+    if (found == impl_->registrations.objects.end()) return local_error(ErrorCategory::invalid_argument, "poller.remove", "Unknown registration");
     auto& c = *impl_->context; auto d = record<srtm_error_v1>();
-    if (c.api.poller_remove(c.runtime, impl_->handle, found->second, &d) != SRTM_OK) return rich_error(&c, "poller.remove", d);
-    impl_->registrations.erase(found); return Success{};
+    if (c.api.poller_remove(c.runtime, impl_->handle, found->second->handle, &d) != SRTM_OK) return rich_error(&c, "poller.remove", d);
+    found->second->registrations.erase(&impl_->registrations);
+    impl_->registrations.objects.erase(found); return Success{};
 }
 WaitResult Poller::wait(std::span<Event> output, WaitTimeout timeout, Error* failure_detail) {
     uint64_t ms = SRTM_WAIT_FOREVER;

@@ -115,16 +115,13 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
     struct Merge { srtm_handle handle; uint32_t index; };
     const size_t merge_size = std::bit_ceil(capacity*2u);
     while (true) {
+        bool terminal_ready = false;
         {
             std::lock_guard lock(p.mutex);
             if (p.interrupted || p.closing) {
                 p.interrupted = false; p.wake.drain(); *count = 0; return SRTM_INTERRUPTED;
             }
-            if (!p.terminal.empty()) {
-                auto n = std::min(capacity, static_cast<uint32_t>(p.terminal.size()));
-                for (uint32_t i = 0; i < n; ++i) output(i, p.terminal[i]);
-                *count = n; return SRTM_OK;
-            }
+            terminal_ready = !p.terminal.empty();
             p.wake.drain();
         }
 #ifndef PROVIDER_HAIVISION
@@ -132,7 +129,8 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
         SYSSOCKET native_ready = SYSSOCKET_INVALID;
 #endif
         int64_t wait_ms = -1;
-        if (timeout != SRTM_WAIT_FOREVER) {
+        if (terminal_ready) wait_ms = 0;
+        else if (timeout != SRTM_WAIT_FOREVER) {
             auto remaining = deadline-Clock::now();
             wait_ms = remaining <= Clock::duration::zero() ? 0 : std::chrono::ceil<std::chrono::milliseconds>(remaining).count();
         }
@@ -173,6 +171,24 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
                 output(written++, {sizeof(srtm_event_v1), ready, sub.object, sub.token});
             }
         };
+        // Closed objects remain level-ready. Rotate their bounded prefix and
+        // alternate priority with native events so neither class can monopolize
+        // even a one-slot output. Pending terminal events make the native poll
+        // nonblocking; spare slots still include native readiness in this call.
+        auto append_terminal = [&] {
+            if (p.terminal.empty()) return;
+            p.terminal_cursor %= p.terminal.size();
+            const auto n = std::min<size_t>(capacity-written, p.terminal.size());
+            for (size_t i = 0; i < n; ++i) {
+                const auto& event = p.terminal[(p.terminal_cursor+i)%p.terminal.size()];
+                auto found = p.subscriptions.find(event.object);
+                if (found != p.subscriptions.end()) append(found->second, event.readiness);
+            }
+            p.terminal_cursor = (p.terminal_cursor+n)%p.terminal.size();
+        };
+        const bool terminal_first = p.terminal_first;
+        if (!p.terminal.empty()) p.terminal_first = !p.terminal_first;
+        if (terminal_first) append_terminal();
 #ifdef PROVIDER_HAIVISION
         for (int i = 0; i < result; ++i) {
             const auto& event = p.native_events[static_cast<size_t>(i)];
@@ -209,10 +225,7 @@ srtm_status poller_wait(srtm_runtime* r, srtm_handle ph, uint64_t timeout, srtm_
         for (int i = 0; i < rn; ++i) translate(p.reads[static_cast<size_t>(i)], SRTM_READY_READ);
         for (int i = 0; i < wn; ++i) translate(p.writes[static_cast<size_t>(i)], SRTM_READY_WRITE);
 #endif
-        for (auto& event : p.terminal) {
-            auto found = p.subscriptions.find(event.object);
-            if (found != p.subscriptions.end()) append(found->second, event.readiness);
-        }
+        if (!terminal_first) append_terminal();
         if (written) { *count = written; return SRTM_OK; }
         if (timeout != SRTM_WAIT_FOREVER && Clock::now() >= deadline) { *count = 0; return SRTM_TIMED_OUT; }
     }

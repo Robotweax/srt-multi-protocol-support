@@ -41,7 +41,10 @@ qualification campaign](docs/validation/2026-11-17-file-qualification.md) adds
 15/15 Release and sanitizer checks and 144 verified transfers after correcting
 benchmark timing. All eight new comparisons remain inconclusive because of native
 variability or confidence bounds. Full performance qualification remains incomplete;
-production I/O and close/cancellation protections are unchanged.
+production I/O and close/cancellation protections are unchanged. Subsequent
+[polling review fixes](docs/validation/2026-11-17-polling-review-fixes.md) address
+ready-event starvation and facade registration cleanup; their new module bytes
+require fresh performance qualification.
 
 ## Build and check
 

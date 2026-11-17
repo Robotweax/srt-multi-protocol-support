@@ -163,6 +163,93 @@ void polling_batches(Provider& caller, Provider& server) {
     require(std::holds_alternative<Success>(pairs[0]->tx.close(AbortClose{})),"peer close");
     ready(poller,token,Interest::error);
 }
+void terminal_fairness(Provider& provider) {
+    Pair pair(provider, provider, file_stream_profile());
+    auto poller = take(provider.create_poller());
+    std::array<Connection, 3> closed{
+        take(provider.create_connection(live_profile())),
+        take(provider.create_connection(live_profile())),
+        take(provider.create_connection(live_profile()))};
+    std::array<Registration, 3> terminal{};
+    for (size_t i = 0; i < closed.size(); ++i) {
+        terminal[i] = take(poller.add(closed[i], Interest::state));
+        require(std::holds_alternative<Success>(closed[i].close(AbortClose{})), "terminal close");
+    }
+    auto readable = take(poller.add(*pair.rx, Interest::read));
+    std::array<std::byte, 1> byte{std::byte{42}};
+    require(std::holds_alternative<size_t>(pair.tx.write_stream(byte)), "fairness send");
+    // Independently wait for native readability before checking the mixed poller.
+    auto probe = take(pair.sp.add(*pair.rx, Interest::read));
+    ready(pair.sp, probe, Interest::read);
+    std::array<Event, 4> batch{};
+    auto n = poller.wait(batch, InfiniteWait{});
+    require(std::holds_alternative<size_t>(n), "mixed wait failed");
+    bool saw_read = false;
+    for (size_t i = 0; i < std::get<size_t>(n); ++i)
+        saw_read |= batch[i].registration.id == readable.id;
+    require(saw_read, "terminal readiness hides native readiness with spare capacity");
+    // With one slot, both readiness classes and every terminal must make progress.
+    std::array<Event, 1> single{};
+    std::array<bool, 3> seen{};
+    saw_read = false;
+    for (size_t i = 0; i < 12; ++i) {
+        auto result = poller.wait(single, InfiniteWait{});
+        require(std::holds_alternative<size_t>(result) && std::get<size_t>(result) == 1, "single-slot wait");
+        saw_read |= single[0].registration.id == readable.id;
+        for (size_t j = 0; j < seen.size(); ++j) seen[j] = seen[j] || single[0].registration.id == terminal[j].id;
+    }
+    require(saw_read && seen[0] && seen[1] && seen[2], "bounded output starves ready registration");
+    take(poller.wake());
+    require(std::holds_alternative<Interrupted>(poller.wait(single, InfiniteWait{})), "wake must precede mixed readiness");
+    require(std::holds_alternative<size_t>(poller.wait(single, 0ms)), "wake discarded readiness");
+    require(std::holds_alternative<size_t>(pair.rx->read_stream(byte)), "fairness read");
+}
+void registration_lifetimes(Provider& provider) {
+    auto poller = take(provider.create_poller());
+    auto other = take(provider.create_poller());
+    for (int i = 0; i < 512; ++i) {
+        Registration token{}, second{};
+        {
+            auto connection = take(provider.create_connection(live_profile()));
+            token = take(poller.add(connection, Interest::read));
+            second = take(other.add(connection, Interest::read));
+            require(std::holds_alternative<Error>(poller.add(connection, Interest::read)), "duplicate registration");
+            auto moved = std::move(connection);
+            take(poller.update(token, Interest::state));
+        }
+        require(std::holds_alternative<Error>(poller.update(token, Interest::read)), "destroyed object registration retained");
+        require(std::holds_alternative<Error>(poller.remove(token)), "destroyed object token still registered");
+        require(std::holds_alternative<Error>(other.remove(second)), "second poller retained object");
+    }
+    for (int i = 0; i < 32; ++i) {
+        std::future<Result<Success>> removal;
+        {
+            auto connection = take(provider.create_connection(live_profile()));
+            require(std::holds_alternative<Error>(poller.add(connection, static_cast<Interest>(0))), "invalid interests accepted");
+            auto token = take(poller.add(connection, Interest::read)); // Failed add rolled back both links.
+            removal = std::async(std::launch::async, [&poller, token] { return poller.remove(token); });
+        } // Removal may race object destruction, without accessing its wrapper.
+        (void)removal.get();
+    }
+    Registration listener_token{};
+    {
+        auto listener = take(provider.listen({{"127.0.0.1", 0, 0}, 8, live_profile(), {}}));
+        listener_token = take(poller.add(listener, Interest::read));
+    }
+    require(std::holds_alternative<Error>(poller.remove(listener_token)), "destroyed listener registration retained");
+    auto listener = take(provider.listen({{"127.0.0.1", 0, 0}, 8, live_profile(), {}}));
+    {
+        auto short_lived = take(provider.create_poller());
+        auto token = take(short_lived.add(listener, Interest::read));
+        take(short_lived.remove(token));
+        take(short_lived.add(listener, Interest::read));
+        auto moved = std::move(short_lived);
+    } // Poller can also disappear before the registered object.
+    auto token = take(poller.add(listener, Interest::read));
+    take(poller.remove(token));
+    std::array<Event, 1> event{};
+    require(std::holds_alternative<TimedOut>(poller.wait(event, 0ms)), "released registrations left events");
+}
 int main(int argc,char** argv) {
     try {
         require(argc==4,"two providers and load order required");
@@ -174,6 +261,8 @@ int main(int argc,char** argv) {
         require(copy.info().build_fingerprint==first.info().build_fingerprint,"provider shared ownership");
         auto again=take(runtime.load({argv[1],"robotweax","0.3.3",{}}));
         require(take(again.now()).clock_domain==take((reversed?second:first).now()).clock_domain,"duplicate runtime startup");
+        terminal_fairness(first); terminal_fairness(second);
+        registration_lifetimes(first); registration_lifetimes(second);
         cancellation(first); cancellation(second);
         polling_batches(first,second); polling_batches(second,first);
         for(bool file:{false,true}) for(bool encrypted:{false,true}) {

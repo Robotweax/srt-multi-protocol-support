@@ -128,6 +128,8 @@ struct PollState {
     std::unordered_map<srtm_handle, Subscription> subscriptions;
     std::unordered_map<SRTSOCKET, srtm_handle> sockets;
     std::vector<srtm_event_v1> terminal;
+    size_t terminal_cursor = 0;
+    bool terminal_first = true;
     std::array<SRT_EPOLL_EVENT, 256> native_events{};
     std::vector<SRTSOCKET> reads = std::vector<SRTSOCKET>(256);
     std::vector<SRTSOCKET> writes = std::vector<SRTSOCKET>(256);
