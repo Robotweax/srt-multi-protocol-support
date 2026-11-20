@@ -11,8 +11,8 @@ capabilities are not evidence of implemented wrapper support.
 ## Coverage and evidence
 
 The [symbol/option ledger](NATIVE-SURFACE.md) and [machine-readable inventory](native-surface.json)
-cover all 85 Robotweax exported names, all 74 Haivision annotated public names,
-87 Robotweax socket options and 61 Haivision options, including conditional
+cover all 86 Robotweax exported names, all 74 Haivision annotated public names,
+94 Robotweax socket options and 61 Haivision options, including conditional
 build branches. All Haivision names in this inventory occur in Robotweax's
 compatibility surface; that does not prove equivalent semantics. The inventory
 also records message/statistics/Robotweax result fields, transport profiles,
@@ -33,12 +33,12 @@ python3 tools/check_native_audit.py --robotweax /path/to/pinned/robotweax --haiv
 
 Primary sources, inspected from the pinned trees:
 
-- [Robotweax public header](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/include/srt/srt.h), [toolkit header](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/include/robotweax_srt.h), [export manifest](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/cmake/public-symbols.txt), [compatibility manifest](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/compat/srt-1.5.7-api.json).
+- [Robotweax public header](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/include/srt/srt.h), [toolkit header](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/include/robotweax_srt.h), [export manifest](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/cmake/public-symbols.txt), [compatibility manifest](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/compat/srt-1.5.7-api.json).
 - [Haivision public header](https://github.com/Haivision/srt/blob/899348d8318eb9a3c5a5b6ec43c4a1114288773a/srtcore/srt.h).
-- [Group contracts](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/connection-groups.md), [FEC/Sensor](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/packet-filter.md), [Control](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/control-profile.md).
-- [Session authentication](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/session-authentication.md), [encryption](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/encryption.md), [ACP1](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/experimental-acp1.md).
-- [Path identifiers](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/group-path-identifiers.md), [standby RTT](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/standby-rtt-foundation.md), [ARQ-first FEC](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/arq-first-fec.md).
-- [Hybrid control](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/experimental-hybrid-control.md), [controllers](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/experimental-controllers.md), [filters](https://github.com/Robotweax/srt/blob/29c741d35f89a412926c374d6ccb15fa1270833c/docs/experimental-filters.md).
+- [Group contracts](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/connection-groups.md), [FEC/Sensor](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/packet-filter.md), [Control](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/control-profile.md).
+- [Session authentication](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/session-authentication.md), [encryption](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/encryption.md), [ACP1](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/experimental-acp1.md).
+- [Path identifiers](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/group-path-identifiers.md), [standby RTT](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/standby-rtt-foundation.md), [ARQ-first FEC](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/arq-first-fec.md).
+- [Hybrid control](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/experimental-hybrid-control.md), [controllers](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/experimental-controllers.md), [filters](https://github.com/Robotweax/srt/blob/87742777290e6a77e38672ca35701f7184b75526/docs/experimental-filters.md).
 
 ## Capability matrix
 

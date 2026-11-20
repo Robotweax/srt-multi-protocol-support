@@ -53,9 +53,27 @@ struct WakeChannel {
     void reset() { srtmux_hv_wake_destroy(std::exchange(native, nullptr)); }
     ~WakeChannel() { reset(); }
 };
+#elif defined(ROBOTWEAX_SRT_EPOLL_WAKE_VERSION)
+// The vendor's own wake call: no socket, no descriptor. The library keeps the
+// wake pending until a wait returns empty because of it, so an early drain here
+// costs at most one extra empty return, never a lost wake.
+struct WakeChannel {
+    int eid = -1;
+    bool signalled = false; // Protected by the owner poller mutex.
+    bool open(int poll) { eid = poll; return srt_epoll_set(eid, SRT_EPOLL_ENABLE_EMPTY) != SRT_ERROR; }
+    bool signal() {
+        if (!signalled) {
+            if (robotweax_srt_epoll_wake(eid) != 0) return false;
+            signalled = true;
+        }
+        return true;
+    }
+    void drain(bool = false) { signalled = false; }
+    void reset() {}
+};
 #else
-// Public vendor API only: a registered SRT socket reports ERR as soon as it is
-// closed, which wakes srt_epoll_uwait natively. Re-arming replaces the socket.
+// For vendor releases without a wake call (before 0.3.4): a registered SRT socket
+// reports ERR as soon as it is closed, which wakes srt_epoll_uwait natively. Re-arming replaces the socket.
 // No OS descriptor, system-socket polling tick or vendor internals are used.
 struct WakeChannel {
     int eid = -1;
