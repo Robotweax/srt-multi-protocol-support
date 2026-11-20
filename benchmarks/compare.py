@@ -160,7 +160,7 @@ def main():
         for block, provider, path in schedule:
             command = [binaries[provider if path == 'direct' else path], str(args.mib)]
             if path != 'direct':
-                command += [files[provider], provider, '0.3.3' if provider == 'robotweax' else '1.5.7']
+                command += [files[provider], provider, '0.3.4' if provider == 'robotweax' else '1.5.7']
             started = time.time()
             completed = subprocess.run(command, text=True, capture_output=True, timeout=450, env=env)
             if completed.returncode:

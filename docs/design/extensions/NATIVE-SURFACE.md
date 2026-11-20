@@ -10,6 +10,7 @@ Header presence includes optional builds; it does not mean this wrapper exposes 
 | Symbol | RW header | HV header | Family | Wrapper disposition |
 | --- | --- | --- | --- | --- |
 | `robotweax_srt_connect_group_acquire` | yes | no | udp_adoption | unexposed |
+| `robotweax_srt_epoll_wake` | yes | no | polling | internal_mapping |
 | `robotweax_srt_error_string` | yes | no | toolkit | intentionally_outside_transport_core |
 | `robotweax_srt_group_path_data_v1` | yes | no | groups | unexposed |
 | `robotweax_srt_group_send_state_v1` | yes | no | groups | unexposed |
@@ -162,9 +163,16 @@ it is not counted as an API declaration.
 | `SRTO_ROBOTWEAX_MCAST_STATS` | yes | no | multicast | unexposed |
 | `SRTO_ROBOTWEAX_MCAST_TTL` | yes | no | multicast | unexposed |
 | `SRTO_ROBOTWEAX_MULTICAST` | yes | no | multicast | unexposed |
+| `SRTO_ROBOTWEAX_NPD_POLICY` | yes | no | tuning | unexposed |
+| `SRTO_ROBOTWEAX_NPD_STATS` | yes | no | telemetry | unexposed |
 | `SRTO_ROBOTWEAX_PATHID` | yes | no | groups | unexposed |
 | `SRTO_ROBOTWEAX_PATHID_POLICY` | yes | no | groups | unexposed |
 | `SRTO_ROBOTWEAX_PATHID_REQUIRED` | yes | no | groups | unexposed |
+| `SRTO_ROBOTWEAX_PEERAUTH_KEY` | yes | no | crypto | unexposed |
+| `SRTO_ROBOTWEAX_PEERAUTH_OFFERED` | yes | no | crypto | unexposed |
+| `SRTO_ROBOTWEAX_PEERAUTH_PEER` | yes | no | crypto | unexposed |
+| `SRTO_ROBOTWEAX_PEERAUTH_POLICY` | yes | no | crypto | unexposed |
+| `SRTO_ROBOTWEAX_PEERAUTH_TRUSTED` | yes | no | crypto | unexposed |
 | `SRTO_ROBOTWEAX_PEERGROUP` | yes | no | admission | unexposed |
 | `SRTO_ROBOTWEAX_PEER_HANDSHAKE` | yes | no | admission | unexposed |
 | `SRTO_ROBOTWEAX_PEER_IDENTITY` | yes | no | identity | unexposed |

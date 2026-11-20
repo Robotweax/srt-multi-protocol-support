@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "robotweax_revision": "29c741d35f89a412926c374d6ccb15fa1270833c",
+  "robotweax_revision": "87742777290e6a77e38672ca35701f7184b75526",
   "haivision_revision": "899348d8318eb9a3c5a5b6ec43c4a1114288773a",
   "wrapper_revision": "8f3579c",
   "scope": "All public exported names, all declared socket options including build-conditional branches, common message/statistics fields, all uninstalled source-tree C++ headers. Presence is not support or interoperability.",
@@ -8,7 +8,7 @@
     {
       "provider": "robotweax",
       "path": "include/srt/srt.h",
-      "sha256": "6302e3d7ca20e9f1755539549835028ae3515520106b1e8b4d90bdca6175978f"
+      "sha256": "c9c974d24f1e0121a8f646673dbd921fae8f484f03882ff488f193e1cb195c12"
     },
     {
       "provider": "robotweax",
@@ -18,7 +18,7 @@
     {
       "provider": "robotweax",
       "path": "cmake/public-symbols.txt",
-      "sha256": "be1535a1a3f77aef7bfd162282cd32c48bde658d80540e92dea6c7547727f7a4"
+      "sha256": "8eae69cbe800a38039027a5f5abdbb43c0cdccdf71d04470e83022d72e5fafb3"
     },
     {
       "provider": "robotweax",
@@ -28,7 +28,7 @@
     {
       "provider": "robotweax",
       "path": "CMakeLists.txt",
-      "sha256": "d489fcf1161d471c9fbdb6ce2e01dbdcdb7079d213b4f269c37034febabad6f9"
+      "sha256": "304770f3a2d50fd348e2d31a663c789f759bf26fae699202f7c47aa63fb91231"
     },
     {
       "provider": "haivision",
@@ -43,6 +43,14 @@
       "haivision_declared": false,
       "family": "udp_adoption",
       "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
+    },
+    {
+      "name": "robotweax_srt_epoll_wake",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "polling",
+      "wrapper": "internal_mapping",
       "native_robotweax_manifest_status": "extension_or_not_in_compat_manifest"
     },
     {
@@ -1215,6 +1223,22 @@
       "native_robotweax_manifest_status": "extension_or_conditional"
     },
     {
+      "name": "SRTO_ROBOTWEAX_NPD_POLICY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "tuning",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_NPD_STATS",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "telemetry",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
       "name": "SRTO_ROBOTWEAX_PATHID",
       "robotweax_declared": true,
       "haivision_declared": false,
@@ -1235,6 +1259,46 @@
       "robotweax_declared": true,
       "haivision_declared": false,
       "family": "groups",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERAUTH_KEY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERAUTH_OFFERED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERAUTH_PEER",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERAUTH_POLICY",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
+      "wrapper": "unexposed",
+      "native_robotweax_manifest_status": "extension_or_conditional"
+    },
+    {
+      "name": "SRTO_ROBOTWEAX_PEERAUTH_TRUSTED",
+      "robotweax_declared": true,
+      "haivision_declared": false,
+      "family": "crypto",
       "wrapper": "unexposed",
       "native_robotweax_manifest_status": "extension_or_conditional"
     },
@@ -2138,7 +2202,7 @@
     },
     {
       "path": "include/robotweax/srt/crypto.hpp",
-      "sha256": "36434e7b9ee1d0bb06e24399d197737745878f856da70f8b1e41a3fe0c09895b",
+      "sha256": "4abb2ab25bad4070adf698c3cc2701269f711e56202dc140c69eb65a036e8c00",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "KeyMaterialCipher",
@@ -2161,7 +2225,7 @@
     },
     {
       "path": "include/robotweax/srt/crypto_provider.hpp",
-      "sha256": "711f793c37a20cda845e5e6e8b852607fa41caad90aca25aeba51663bab045fe",
+      "sha256": "8a5c2f5b50130f0e7d490aadadf9c5dad5344338ef00424be629e9c7bf19edcd",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "PayloadCipher",
@@ -2222,7 +2286,7 @@
     },
     {
       "path": "include/robotweax/srt/handshake.hpp",
-      "sha256": "c0bc110874f0e954f1d88e75d75ecb7e79061b0dbb47252a2258e5f3e4265771",
+      "sha256": "a05f397d5171b39779d0ddd7b86fa6984783b3e639b12cd2ee19dc9510709a99",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "HandshakeRequest",
@@ -2241,7 +2305,7 @@
     },
     {
       "path": "include/robotweax/srt/handshake_datagram.hpp",
-      "sha256": "432590a6f19539ebf73fd8d545848b98d4280dd90ad20862afba0189622b0a66",
+      "sha256": "ee4aa2998eeb2e306eaf79275f15b573752b42eca6f05eb98d2f437d633a3039",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "HandshakeDatagramDecodeResult",
@@ -2250,7 +2314,7 @@
     },
     {
       "path": "include/robotweax/srt/handshake_extensions.hpp",
-      "sha256": "8708cbc62fcc1dee5724e296b7a253e595a50c86a9f240a7ad27fb7a0a6a5a9d",
+      "sha256": "f61941d941259cb5cf6ea47cd90aad6b0bd834bd9b76ecca5845a39c5844d2dc",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "HandshakeExtensionType",
@@ -2368,7 +2432,7 @@
     },
     {
       "path": "include/robotweax/srt/rendezvous.hpp",
-      "sha256": "08b929110e7aecad035bab66e965fbe80a0ef51d0a419e642107578f0ac60801",
+      "sha256": "32f4848f5089d1d63923e9ae1ceb0bccafd890cb821821bf15ef1215c3045080",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "RendezvousRole",
@@ -2409,7 +2473,7 @@
     },
     {
       "path": "include/robotweax/srt/session.hpp",
-      "sha256": "b726634cd31d9ade9c2a4da527d8748c126bd894a2784c5c2fd097c5c4bed62b",
+      "sha256": "34edb772d1ae99aca254e210467be0ecbda65cd5c59b81df45bd24863a60d13a",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "ControllerInstance",
@@ -2428,7 +2492,7 @@
     },
     {
       "path": "include/robotweax/srt/session_authentication.hpp",
-      "sha256": "f24fe9d9dfd222f2bd3ebf41dac1c518595b73ce20a904081a6cd395e0a4a7c6",
+      "sha256": "8f930b4959907cfac32b95d3d6f6d892dfbdd719475ad2e8ee2a35bbc48fcb18",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "SessionAuthenticationParameters",
@@ -2447,7 +2511,7 @@
     },
     {
       "path": "include/robotweax/srt/socket_options.hpp",
-      "sha256": "4cf3e1d487289ce4a8b27fcbbe949a5c1f14fedbd627e80b73656f5fbffcfff0",
+      "sha256": "19e7037bf77cda48340a9442ac2a108aa8489a4d36a39fe1fcbb3d5035015d86",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "TransmissionType",
@@ -2492,7 +2556,7 @@
     },
     {
       "path": "include/robotweax/srt/udp.hpp",
-      "sha256": "953d314598a6a266f665957d6aa89e1a7af905d412336a3a0b87f8d02c85d27e",
+      "sha256": "503fb5bf7c1cdf6e7a68337975f0b599ce2101cd23e05a483d5f80d80de6453f",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "IpAddressFamily",

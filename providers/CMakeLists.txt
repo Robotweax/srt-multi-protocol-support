@@ -25,11 +25,11 @@ set(USE_OPENSSL_PC OFF CACHE BOOL "" FORCE)
 set(USE_ENCLIB openssl CACHE STRING "" FORCE)
 set(ROBOTWEAX_SRT_CRYPTO_BACKEND openssl CACHE STRING "" FORCE)
 
-set(robotweax_revision 29c741d35f89a412926c374d6ccb15fa1270833c)
+set(robotweax_revision 87742777290e6a77e38672ca35701f7184b75526)
 set(haivision_revision 899348d8318eb9a3c5a5b6ec43c4a1114288773a)
 FetchContent_Declare(robotweax
   URL https://codeload.github.com/Robotweax/srt/tar.gz/${robotweax_revision}
-  URL_HASH SHA256=325d8ecf79b7798faff833499ebfa6b63ea49d83bebb10e2a23aaca26b3f990b)
+  URL_HASH SHA256=8d08878b8d041ec8cccf3845935d3f0e01f413ae5299c88f93f1872d8493dfb6)
 FetchContent_Declare(haivision
   URL https://codeload.github.com/Haivision/srt/tar.gz/${haivision_revision}
   URL_HASH SHA256=82050d96a1a55d54b423fed4ad80ddb6f30b31bf33e317ffd6726c91ee9a6170)
@@ -70,7 +70,7 @@ foreach(provider IN ITEMS robotweax haivision)
       set(robotweax_wake close-notify)
     endif()
     set(features "profiles-v1,native-telemetry-v1,experimental-off,aead-off,bonding-off,maxrexmitbw-off,static-srt,shared-openssl,basic-io,native-poller,native-wake=${robotweax_wake}")
-    set(release 0.3.3)
+    set(release 0.3.4)
     set(tag 0x5257)
     target_include_directories(srtmux_${provider} PRIVATE "${robotweax_SOURCE_DIR}/include/srt")
     target_link_libraries(srtmux_${provider} PRIVATE robotweax_srt)

@@ -29,8 +29,8 @@ def main():
         names = [r['name'] for r in rows]
         assert len(names) == len(set(names)), f'duplicate {kind}'
         assert all(r['family'] and r['wrapper'] and (r['robotweax_declared'] or r['haivision_declared']) for r in rows)
-    assert len([r for r in audit['functions'] if r['robotweax_declared']]) == 85
-    assert len([r for r in audit['options'] if r['robotweax_declared']]) == 87
+    assert len([r for r in audit['functions'] if r['robotweax_declared']]) == 86
+    assert len([r for r in audit['options'] if r['robotweax_declared']]) == 94
     assert len([r for r in audit['functions'] if r['haivision_declared']]) == 74
     assert len([r for r in audit['options'] if r['haivision_declared']]) == 61
     catalogue = (ROOT/'providers/metrics.inc').read_text()

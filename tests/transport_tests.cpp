@@ -255,11 +255,11 @@ int main(int argc,char** argv) {
         require(argc==4,"two providers and load order required");
         auto runtime=take(TransportRuntime::create());
         bool reversed=std::string(argv[3])=="reversed";
-        auto first=take(runtime.load({reversed?argv[2]:argv[1],reversed?"haivision":"robotweax",reversed?"1.5.7":"0.3.3",{}}));
-        auto second=take(runtime.load({reversed?argv[1]:argv[2],reversed?"robotweax":"haivision",reversed?"0.3.3":"1.5.7",{}}));
+        auto first=take(runtime.load({reversed?argv[2]:argv[1],reversed?"haivision":"robotweax",reversed?"1.5.7":"0.3.4",{}}));
+        auto second=take(runtime.load({reversed?argv[1]:argv[2],reversed?"robotweax":"haivision",reversed?"0.3.4":"1.5.7",{}}));
         auto copy=first;
         require(copy.info().build_fingerprint==first.info().build_fingerprint,"provider shared ownership");
-        auto again=take(runtime.load({argv[1],"robotweax","0.3.3",{}}));
+        auto again=take(runtime.load({argv[1],"robotweax","0.3.4",{}}));
         require(take(again.now()).clock_domain==take((reversed?second:first).now()).clock_domain,"duplicate runtime startup");
         terminal_fairness(first); terminal_fairness(second);
         registration_lifetimes(first); registration_lifetimes(second);

@@ -72,7 +72,7 @@ struct WakeChannel {
     void reset() {}
 };
 #else
-// For vendor releases without a wake call (0.3.3): a registered SRT socket
+// For vendor releases without a wake call (before 0.3.4): a registered SRT socket
 // reports ERR as soon as it is closed, which wakes srt_epoll_uwait natively. Re-arming replaces the socket.
 // No OS descriptor, system-socket polling tick or vendor internals are used.
 struct WakeChannel {

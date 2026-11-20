@@ -21,7 +21,7 @@ revision and SHA-256:
 
 | Provider | Release | Source revision |
 | --- | --- | --- |
-| Robotweax | 0.3.3 | `29c741d35f89a412926c374d6ccb15fa1270833c` |
+| Robotweax | 0.3.4 | `87742777290e6a77e38672ca35701f7184b75526` |
 | Haivision | 1.5.7 | `899348d8318eb9a3c5a5b6ec43c4a1114288773a` |
 
 Haivision uses the pinned 1.5.7 source **with the local
@@ -129,15 +129,13 @@ socket. A small bridge, compiled with the pinned vendor target’s own headers a
 definitions, sets its native readiness and signals the vendor event. It creates
 no UDP transport or helper thread. The bridge is private and is included in build
 fingerprints as `native-wake`; no vendor C++ layout crosses the module boundary.
-Robotweax also uses native `srt_epoll_uwait`. With the pinned 0.3.3 its wake
-identity is an ordinary unbound SRT socket registered for the error event:
-closing that socket makes the vendor poll report it at once, and the adapter
-re-arms with a fresh socket when the waiter drains the wake. When the vendor
-header declares `robotweax_srt_epoll_wake` (releases after 0.3.3), the adapter
-calls that instead and needs no wake socket; `build_features` records which one
-a module uses as `native-wake=close-notify` or `native-wake=epoll-wake`. Only
-public vendor API is used either way; there is no OS wake descriptor and
-therefore no system-socket polling tick. Both providers share one
+Robotweax also uses native `srt_epoll_uwait` and wakes its poller with the
+vendor's `robotweax_srt_epoll_wake`, available from 0.3.4: no wake socket and no
+OS descriptor, so no system-socket polling tick. `build_features` records this
+as `native-wake=epoll-wake`. Built against an older vendor header without that
+call, the adapter instead closes a registered SRT socket to raise an error event
+and records `native-wake=close-notify`. Only public vendor API is used either way.
+Both providers share one
 wait and translation path. There is no coordinator thread, wrapper timer slicing
 or scan of all registered sockets on each wait. Each ready event costs one lookup,
 and a wait does work proportional to the events it reports rather than to the

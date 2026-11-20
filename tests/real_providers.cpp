@@ -417,8 +417,8 @@ int main(int argc, char** argv) {
     try {
         require(argc == 4, "Expected two provider paths and load order");
         const bool reversed = std::string(argv[3]) == "reversed";
-        auto first = std::make_unique<Session>(reversed ? argv[2] : argv[1], reversed ? "haivision" : "robotweax", reversed ? "1.5.7" : "0.3.3");
-        auto second = std::make_unique<Session>(reversed ? argv[1] : argv[2], reversed ? "robotweax" : "haivision", reversed ? "0.3.3" : "1.5.7");
+        auto first = std::make_unique<Session>(reversed ? argv[2] : argv[1], reversed ? "haivision" : "robotweax", reversed ? "1.5.7" : "0.3.4");
+        auto second = std::make_unique<Session>(reversed ? argv[1] : argv[2], reversed ? "robotweax" : "haivision", reversed ? "0.3.4" : "1.5.7");
         Session& rw = reversed ? *second : *first; Session& hv = reversed ? *first : *second;
         checks(rw, hv); checks(hv, rw);
         extension_checks(rw, hv); extension_checks(hv, rw);

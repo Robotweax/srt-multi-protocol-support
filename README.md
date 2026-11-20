@@ -1,13 +1,13 @@
 # SRT multi protocol support
 
 A C++20 host for selecting independently isolated SRT implementations at runtime.
-The intended first providers are Robotweax SRT 0.3.3 and Haivision SRT 1.5.7.
+The intended first providers are Robotweax SRT 0.3.4 and Haivision SRT 1.5.7.
 Each provider statically contains its vendor library and exposes a versioned
 C function table behind a C++20 transport facade. The interfaces remain unreleased.
 
 ## Current development milestone
 
-The host loader and real Robotweax 0.3.3 / Haivision 1.5.7 modules are implemented.
+The host loader and real Robotweax 0.3.4 / Haivision 1.5.7 modules are implemented.
 The modules support basic nonblocking caller/listener connections, Live messages,
 File streams, AES-CTR, state/error readback and independent runtime cleanup through
 our C function table. Provider-local polling, concurrent abort-close/cancellation,
@@ -62,7 +62,8 @@ latest measured source. Later [foundation review fixes](docs/validation/2026-11-
 give Robotweax a native poller wake, make close notification and per-wait work
 independent of registry size and output capacity, move handle generations to
 per-slot ranges and report wrong passphrases as authentication failures; they
-postdate the measured source and its throughput records. Earlier [controlled File](docs/validation/2026-11-16-controlled-throughput.md),
+postdate the measured source and its throughput records. The Robotweax provider has since moved to
+[release 0.3.4](docs/validation/2026-11-20-robotweax-0.3.4.md) and its native poller wake call. Earlier [controlled File](docs/validation/2026-11-16-controlled-throughput.md),
 [Live/encrypted](docs/validation/2026-11-16-live-encrypted-throughput.md),
 [profiles/telemetry](docs/validation/2026-11-16-profiles-telemetry.md) and
 [File investigation](docs/validation/2026-11-17-file-qualification.md) reports remain
