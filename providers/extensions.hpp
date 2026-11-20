@@ -8,6 +8,12 @@ srtm_status ext_describe(srtm_runtime* r, srtm_text name, srtmx_feature_v1* out,
     bool built = false, available = false, experimental = false, known = false;
     for (auto n : {"live", "file", "aes_ctr", "socket_tuning", "native_telemetry"})
         if (ext_name(name, n)) { built = available = known = true; }
+    if (ext_name(name, "null_packet_deletion")) {
+        known = experimental = true; // Vendor status: experimental, provisional identifiers.
+#ifdef SRTMUX_NATIVE_NPD
+        built = available = true;
+#endif
+    }
     for (auto n : {"control", "sensor", "session_auth", "path_ids", "standby_rtt", "arq_first_fec", "multicast", "independent_multicast", "coordinated_multicast"})
         if (ext_name(name, n)) {
             known = true;
@@ -52,13 +58,27 @@ bool ext_tune(SRTSOCKET s, const srtmx_tuning_v1& t) {
 bool ext_configure(SRTSOCKET s, const ProfileState& p) {
     // Flow control precedes receive-buffer configuration, which depends on it.
     auto fc = int(p.config.tuning.flow_window_packets);
-    return (!fc || srt_setsockflag(s, SRTO_FC, &fc, sizeof(fc)) == 0) &&
-        configure(s, p.config.base) && ext_tune(s, p.config.tuning);
+    if (!((!fc || srt_setsockflag(s, SRTO_FC, &fc, sizeof(fc)) == 0) &&
+        configure(s, p.config.base) && ext_tune(s, p.config.tuning))) return false;
+#ifdef SRTMUX_NATIVE_NPD
+    // The policy values are the vendor's own (OFF 0, REQUIRED 1, IF_OFFERED 2).
+    // The vendor reserves one payload byte and rejects an oversized payload here.
+    if (const int32_t policy = static_cast<int32_t>(p.config.null_packet_deletion);
+        policy && srt_setsockflag(s, SRTO_ROBOTWEAX_NPD_POLICY, &policy, sizeof(policy)) != 0) return false;
+#endif
+    return true;
 }
 srtm_status ext_create_profile(srtm_runtime* r, const srtmx_profile_v1* c, srtm_handle* out, srtm_error_v1* d) {
     clear(d); if (out) *out = 0;
-    if (!runtime_ok(r) || !out || !sized(c) || !sized(&c->base) || !sized(&c->fec) || !sized(&c->tuning) || c->reserved || c->base.encryption)
+    if (!runtime_ok(r) || !out || !sized(c) || !sized(&c->base) || !sized(&c->fec) || !sized(&c->tuning) || c->null_packet_deletion > SRTMX_IF_OFFERED || c->base.encryption)
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid profile records", d);
+    if (c->null_packet_deletion) {
+#ifdef SRTMUX_NATIVE_NPD
+        if (c->mode != SRTM_LIVE_MESSAGES) return error(SRTM_ERR_UNSUPPORTED, "Null packet deletion requires Live messages", d);
+#else
+        return error(SRTM_ERR_UNSUPPORTED, "Null packet deletion is not available in this provider", d);
+#endif
+    }
     if (c->mode != SRTM_LIVE_MESSAGES && c->mode != SRTM_FILE_STREAM)
         return error(SRTM_ERR_UNSUPPORTED, "Message channels are not implemented", d);
     if (c->cipher > SRTM_ENCRYPTION_AES_CTR_REQUIRED || c->fec.enabled || c->fec.columns || c->fec.rows || c->fec.layout || c->fec.arq || c->fec.policy || c->fec.tail_probe ||
@@ -103,6 +123,7 @@ srtm_status ext_connect(srtm_runtime* r, srtm_handle h, const srtm_endpoint* loc
     out->handle = 0; out->kind = 0;
     auto p = ext_profile(r, h); if (!p) return error(SRTM_ERR_INVALID_HANDLE, "Invalid profile", d);
     if (rendezvous) return error(SRTM_ERR_UNSUPPORTED, "Rendezvous not implemented", d);
+    if (p->config.null_packet_deletion == SRTMX_IF_OFFERED) return error(SRTM_ERR_INVALID_ARGUMENT, "Null packet deletion IF_OFFERED is a listener policy", d);
     if (r->stopping) return error(SRTM_ERR_INVALID_STATE, "Runtime stopping", d);
     SocketOwner socket{srt_create_socket()};
     if (socket.value == SRT_INVALID_SOCK || !ext_configure(socket.value, *p)) return native_error(d);
@@ -172,23 +193,44 @@ struct MetricSpec {
     void (*read)(const SRT_TRACEBSTATS&, srtmx_metric_v1&);
 };
 #include "metrics.inc"
+#ifdef SRTMUX_NATIVE_NPD
+// Provider-specific metrics follow the common native catalogue and are read
+// from the vendor's own cumulative NPD getter, never from SRT_TRACEBSTATS.
+struct NpdMetric { srtm_text name, description, unit_name; uint64_t ROBOTWEAX_SRT_NPD_STATS_V1::* counter; bool flag; };
+const NpdMetric npd_metrics[] = {
+    {text("robotweax.npd.active"), text("1 when null packet deletion was negotiated for this connection"), text("flag"), nullptr, true},
+    {text("robotweax.npd.deleted_units"), text("Null packets removed from queued messages"), text("packets"), &ROBOTWEAX_SRT_NPD_STATS_V1::deleted_units, false},
+    {text("robotweax.npd.restored_units"), text("Null packets restored into delivered messages"), text("packets"), &ROBOTWEAX_SRT_NPD_STATS_V1::restored_units, false},
+    {text("robotweax.npd.malformed_payloads"), text("Payloads rejected by NPD validation"), text("packets"), &ROBOTWEAX_SRT_NPD_STATS_V1::malformed_payloads, false},
+};
+constexpr uint32_t extra_metrics = static_cast<uint32_t>(std::size(npd_metrics));
+#else
+constexpr uint32_t extra_metrics = 0;
+#endif
+constexpr uint32_t metric_total = static_cast<uint32_t>(std::size(metrics)) + extra_metrics;
 srtm_status ext_resolve(srtm_runtime* r, srtm_text name, srtmx_metric_info_v1* out, srtm_error_v1* d) {
     clear(d);
     if (!runtime_ok(r) || !sized(out) || !name.data || name.size > 128) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid metric query", d);
     for (uint32_t i = 0; i < std::size(metrics); ++i) if (ext_name(name, {metrics[i].name.data, size_t(metrics[i].name.size)})) {
         const auto& m = metrics[i]; *out = {out->struct_size, i+1, m.kind, m.unit, m.name, m.description, m.unit_name}; return SRTM_OK;
     }
+#ifdef SRTMUX_NATIVE_NPD
+    for (uint32_t i = 0; i < extra_metrics; ++i) if (ext_name(name, {npd_metrics[i].name.data, size_t(npd_metrics[i].name.size)})) {
+        const auto& m = npd_metrics[i]; // Value kind 1 (uint64); unit 1 (packets) as for native packet counters, 0 for the flag.
+        *out = {out->struct_size, uint32_t(std::size(metrics))+i+1, 1, m.flag ? 0u : 1u, m.name, m.description, m.unit_name}; return SRTM_OK;
+    }
+#endif
     return error(SRTM_ERR_UNSUPPORTED, "Unknown metric", d);
 }
 srtm_status ext_snapshot(srtm_runtime* r, srtmx_object_v1 o, const uint32_t* ids, uint32_t count, void* records,
     uint32_t stride, uint32_t capacity, uint32_t* required, srtmx_snapshot_v1* out, srtm_error_v1* d) {
     clear(d);
-    if (!sized(&o) || o.kind != SRTMX_KIND_CONNECTION || !required || !sized(out) || count > std::size(metrics) || (count && !ids))
+    if (!sized(&o) || o.kind != SRTMX_KIND_CONNECTION || !required || !sized(out) || count > metric_total || (count && !ids))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid snapshot arguments", d);
     auto e = lookup(r, o.handle);
     if (!e || e->closed || e->listener || e->poller) return error(SRTM_ERR_INVALID_HANDLE, "Invalid snapshot connection", d);
     for (uint32_t i = 0; i < count; ++i) {
-        if (!ids[i] || ids[i] > std::size(metrics)) return error(SRTM_ERR_UNSUPPORTED, "Unknown metric ID", d);
+        if (!ids[i] || ids[i] > metric_total) return error(SRTM_ERR_UNSUPPORTED, "Unknown metric ID", d);
         for (uint32_t j = 0; j < i; ++j) if (ids[i] == ids[j]) return error(SRTM_ERR_INVALID_ARGUMENT, "Duplicate metric ID", d);
     }
     *required = count;
@@ -201,13 +243,35 @@ srtm_status ext_snapshot(srtm_runtime* r, srtmx_object_v1 o, const uint32_t* ids
         uint32_t size; std::memcpy(&size, bytes+size_t(i)*stride, sizeof(size));
         if (size < sizeof(srtmx_metric_v1) || size > stride) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid metric record size", d);
     }
+    // Each native source is read at most once, and only if a requested ID needs it.
+    bool want_native = false, want_extra = false;
+    for (uint32_t i = 0; i < count; ++i) (ids[i] <= std::size(metrics) ? want_native : want_extra) = true;
     SRT_TRACEBSTATS stats{};
-    if (count && srt_bstats(e->socket, &stats, 0) != 0) return native_error(d);
+    if (want_native && srt_bstats(e->socket, &stats, 0) != 0) return native_error(d);
+#ifdef SRTMUX_NATIVE_NPD
+    ROBOTWEAX_SRT_NPD_STATS_V1 npd{};
+    if (want_extra) {
+        int size = sizeof(npd);
+        if (srt_getsockflag(e->socket, SRTO_ROBOTWEAX_NPD_STATS, &npd, &size) != 0) return native_error(d);
+    }
+#else
+    (void)want_extra;
+#endif
     for (uint32_t i = 0; i < count; ++i) {
         auto* dest = bytes+size_t(i)*stride;
         srtmx_metric_v1 m{}; std::memcpy(&m.struct_size, dest, sizeof(m.struct_size));
-        const auto& spec = metrics[ids[i]-1]; m.id = ids[i]; m.value_kind = spec.kind; m.unit = spec.unit;
-        spec.read(stats, m); std::memcpy(dest, &m, sizeof(m));
+        m.id = ids[i];
+        if (ids[i] <= std::size(metrics)) {
+            const auto& spec = metrics[ids[i]-1]; m.value_kind = spec.kind; m.unit = spec.unit;
+            spec.read(stats, m);
+        }
+#ifdef SRTMUX_NATIVE_NPD
+        else {
+            const auto& spec = npd_metrics[ids[i]-std::size(metrics)-1]; m.value_kind = 1; m.unit = spec.flag ? 0u : 1u;
+            m.value.u64 = spec.flag ? npd.active : npd.*spec.counter;
+        }
+#endif
+        std::memcpy(dest, &m, sizeof(m));
     }
     *out = {out->struct_size, count, uint64_t(srt_time_now()), uint64_t(PROVIDER_TAG), o.handle, 0};
     return SRTM_OK;

@@ -70,7 +70,9 @@ typedef struct srtmx_profile_v1 {
     uint32_t session_auth_required, acp1_required;
     uint32_t path_policy, standby_rtt_policy;
     uint32_t identity_advertisement; /* 0 off, 1 name, 2 name+release */
-    uint32_t reserved;
+    /* MPEG-TS null packet deletion: SRTMX_OFF, SRTMX_REQUIRED, or (listeners
+     * only) SRTMX_IF_OFFERED. Live only; unsupported providers reject non-OFF. */
+    uint32_t null_packet_deletion;
     srtm_text compiled_controller; /* trusted build registry; empty=default */
     srtm_text compiled_filter; /* empty=built-in FEC selection */
 } srtmx_profile_v1;

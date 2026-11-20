@@ -200,6 +200,14 @@ class SrtMedium final : public Medium {
     std::vector<uint32_t> stat_ids_;
     uint32_t session_ = 0; // Changes with every connection, like a native socket ID.
     const char* side() const { return input_ ? "source" : "target"; }
+    bool npd_requested() const { return endpoint_.profile.null_packet_deletion != srtmux::NullPacketDeletion::off; }
+    uint64_t npd_counter(const char* name) {
+        std::array<uint32_t, 1> id{checked(connection_->resolve_metric(name)).id};
+        std::array<srtmx_metric_v1, 1> value{}; value[0].struct_size = sizeof(value[0]);
+        auto result = connection_->native_snapshot(id, value);
+        if (!std::holds_alternative<srtmx_snapshot_v1>(result)) throw std::runtime_error("SRT statistics snapshot failed");
+        return value[0].value.u64;
+    }
     srtmux::Interest interest() const {
         using srtmux::Interest;
         // STATE is level-triggered once connected, so it is requested only
@@ -306,6 +314,8 @@ public:
                 payload_ = info.max_message_bytes.value_or(0);
                 checked(poller_.update(*connection_registration_, interest()));
                 if (!endpoint_.listener && !options_.quiet) std::cerr << "SRT " << side() << " connected\n";
+                if (npd_requested() && options_.verbose && !options_.quiet)
+                    std::cerr << "Null packet deletion " << (npd_counter("robotweax.npd.active") ? "active" : "not negotiated") << " on " << side() << '\n';
             }
         } else if (info.state == srtmux::State::failed || info.state == srtmux::State::closed || info.state == srtmux::State::closing)
             disconnected(info.terminal_error ? &*info.terminal_error : nullptr);
@@ -375,6 +385,9 @@ public:
             else if (values[i].value_kind == 2) text << values[i].value.i64;
             else text << values[i].value.f64;
         }
+        if (npd_requested())
+            for (const char* name : {"robotweax.npd.active", "robotweax.npd.deleted_units", "robotweax.npd.restored_units", "robotweax.npd.malformed_payloads"})
+                text << ",\"" << name << "\":" << npd_counter(name);
         text << '}'; return text.str();
     }
 };

@@ -78,6 +78,38 @@ are rejected; ordinary object destruction and runtime shutdown semantics remain.
 The speculative `extensions::v1` C++ classes remain design-only; the implemented
 foundation integrates into the existing facade instead of duplicating ownership.
 
+## Null packet deletion (Robotweax, experimental)
+
+`srtmx_profile_v1.null_packet_deletion` (C++ `ProfileConfig::null_packet_deletion`)
+selects Robotweax SRT's MPEG-TS null packet deletion for a Live profile. The
+sender removes canonical null packets from 188-byte-aligned payloads and the
+receiver restores them, so the application sees the same bytes and message
+boundaries. The vendor classes the feature as experimental with provisional
+identifiers; this layer passes that status on in `describe("null_packet_deletion")`.
+
+| Value | Meaning |
+| --- | --- |
+| `SRTMX_OFF` | Default. Ordinary SRT. |
+| `SRTMX_REQUIRED` | Caller or listener: setup fails unless the peer negotiates it. |
+| `SRTMX_IF_OFFERED` | Listener only: used when the caller offers it; other callers are served with ordinary SRT. |
+
+- Haivision has no such feature: profile creation with a non-OFF value fails
+  Unsupported. So does a File profile on Robotweax, and a caller `connect` with
+  `SRTMX_IF_OFFERED` fails InvalidArgument.
+- A REQUIRED Robotweax caller cannot connect to a Haivision listener. A
+  Haivision caller is served unchanged by an IF_OFFERED Robotweax listener.
+- A non-OFF policy lowers the largest Live payload by one byte; the 1,316-byte
+  default is unaffected. An oversized payload is rejected when the profile is
+  created.
+- The profile field replaces a previously reserved, must-be-zero word, so the
+  record layout is unchanged.
+
+Four provider-specific metrics follow the common catalogue and are resolved by
+name on Robotweax only: `robotweax.npd.active` (0 or 1),
+`robotweax.npd.deleted_units`, `robotweax.npd.restored_units` and
+`robotweax.npd.malformed_payloads`. They are cumulative, unsigned and never
+cleared. Haivision reports them as unknown metrics.
+
 ## Native telemetry
 
 The [82-field catalogue](../docs/design/extensions/METRICS.md) maps stable names

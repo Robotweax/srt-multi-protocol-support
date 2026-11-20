@@ -216,6 +216,39 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
                 else:
                     assert sent_text.count('======= SRT STATS: sid=') == 6 and 'PACKETS     SENT: ' in sent_text and 'BUFFERLEFT:  SND: ' in sent_text, sent_text[:400]
                 print('statistics', provider, style, *extra, flush=True)
+    # Robotweax null packet deletion: bit-exact transport stream delivery with
+    # nulls removed on the wire, unchanged service for a caller without it, and
+    # an explicit failure on a provider that lacks it.
+    def unit(index, null):
+        return b'\x47\x1f\xff\x10' + b'\xff' * 184 if null else b'\x47\x01' + bytes([index % 256, 0x10]) + bytes((index + offset) % 256 for offset in range(184))
+    stream = [b''.join(unit(message * 7 + position, position % 2 == 1) for position in range(7)) for message in range(24)]
+    for caller_provider, caller_policy, expected in (('robotweax', '&npd=required', 'active'), ('haivision', '', 'not negotiated')):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
+            sink.bind(('127.0.0.1', 0)); sink.settimeout(.5); listen_port, udp_port = port(), port(); group = Processes(root)
+            sender_stats = root / 'npd-sender.jsonl'
+            try:
+                receiver = group.start('npd-sink', f'srt://127.0.0.1:{listen_port}?mode=listener&provider=robotweax&npd=if_offered', f'udp://127.0.0.1:{sink.getsockname()[1]}')
+                group.ready(receiver, 'Listening source')
+                sender = group.start('npd-feed', f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={caller_provider}{caller_policy}', '-s:1', '-pf:relay-json', '-statsout', str(sender_stats))
+                group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
+                group.ready(receiver, 'Null packet deletion ' + expected + ' on source')
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as feed:
+                    for message in stream:
+                        feed.sendto(message, ('127.0.0.1', udp_port)); time.sleep(.01)
+                actual = []
+                while True:
+                    try: actual.append(sink.recv(65536))
+                    except socket.timeout: break
+                assert actual and actual == stream[:len(actual)], (len(actual), len(stream))
+                rows = [json.loads(line) for line in sender_stats.read_text().splitlines()]
+                if caller_policy:
+                    assert rows[-1]['target']['robotweax.npd.active'] == 1 and rows[-1]['target']['robotweax.npd.deleted_units'] == 3 * rows[-1]['written_packets'], rows[-1]
+                else:
+                    assert 'robotweax.npd.active' not in rows[-1]['target'], rows[-1]
+                print('null packet deletion', caller_provider, expected, 'received', len(actual), flush=True)
+            finally: group.close()
+    unsupported = subprocess.run([*prefix, '-a:no', 'file://con', f'srt://127.0.0.1:{port()}?provider=haivision&npd=required'], input=b'', capture_output=True, timeout=10)
+    assert unsupported.returncode != 0 and b'not available in this provider' in unsupported.stderr, unsupported.stderr
     # With reconnect enabled a wrong passphrase is retried as in the original,
     # reported once with its reason, and never spins or falls back to plaintext.
     for provider in ('haivision', 'robotweax'):
