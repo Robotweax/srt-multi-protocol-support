@@ -7,7 +7,7 @@ namespace live_transmit {
 struct Options {
     bool help = false, version = false, quiet = false, verbose = false, reconnect = true;
     bool full_stats = false, stats_pretty = false, logging_requested = false;
-    int timeout_seconds = 0, timeout_mode = 0, eof_grace_ms = 1000;
+    int timeout_seconds = 0, timeout_mode = 0, eof_grace_ms = 1000, coalesce_ms = 0;
     size_t chunk = 1456, buffering = 10, stats_every = 0, bandwidth_every = 0;
     std::string provider = "haivision", source, target, stats_path, stats_format = "default";
     std::filesystem::path provider_dir;

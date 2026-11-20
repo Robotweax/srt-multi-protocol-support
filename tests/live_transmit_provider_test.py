@@ -249,6 +249,18 @@ with tempfile.TemporaryDirectory(prefix='srtmux-app-providers-') as temporary:
             finally: group.close()
     unsupported = subprocess.run([*prefix, '-a:no', 'file://con', f'srt://127.0.0.1:{port()}?provider=haivision&npd=required'], input=b'', capture_output=True, timeout=10)
     assert unsupported.returncode != 0 and b'not available in this provider' in unsupported.stderr, unsupported.stderr
+    # Coalesced wake-ups batch input without losing or reordering it.
+    for provider in ('haivision', 'robotweax'):
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sink:
+            sink.bind(('127.0.0.1', 0)); listen_port, udp_port = port(), port(); group = Processes(root)
+            try:
+                receiver = group.start('coalesce-sink', f'srt://127.0.0.1:{listen_port}?mode=listener&provider={provider}', f'udp://127.0.0.1:{sink.getsockname()[1]}', '--coalesce-ms', '10')
+                group.ready(receiver, 'Listening source')
+                sender = group.start('coalesce-feed', f'udp://127.0.0.1:{udp_port}', f'srt://127.0.0.1:{listen_port}?provider={provider}', '--coalesce-ms', '10')
+                group.ready(sender, 'SRT target connected'); group.ready(receiver, 'Accepted SRT source connection')
+                received, tail = feed_and_capture(udp_port, sink, b'coalesce')
+                print('coalesced', provider, 'received', received, 'tail', tail, flush=True)
+            finally: group.close()
     # With reconnect enabled a wrong passphrase is retried as in the original,
     # reported once with its reason, and never spins or falls back to plaintext.
     for provider in ('haivision', 'robotweax'):

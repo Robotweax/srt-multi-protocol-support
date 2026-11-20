@@ -78,12 +78,11 @@ public:
         }
         fd_.nonblocking();
     }
-    ReadResult read(size_t chunk) override {
-        Packet packet; packet.bytes.resize(chunk);
-        const auto n = ::read(fd_.value, packet.bytes.data(), packet.bytes.size());
-        if (n < 0) { if (would_block()) return {ReadResult::State::would_block, {}}; system_error("Read media file"); }
-        if (n == 0) return {ReadResult::State::eof, {}};
-        packet.bytes.resize(static_cast<size_t>(n)); return {ReadResult::State::packet, std::move(packet)};
+    ReadResult read(std::span<std::byte> buffer) override {
+        const auto n = ::read(fd_.value, buffer.data(), buffer.size());
+        if (n < 0) { if (would_block()) return {ReadResult::State::would_block}; system_error("Read media file"); }
+        if (n == 0) return {ReadResult::State::eof};
+        return {ReadResult::State::packet, static_cast<size_t>(n)};
     }
     // Like the original's blocking console write: the whole packet, in order.
     Write write(std::span<const std::byte> bytes) override {
@@ -156,14 +155,12 @@ public:
         if (const auto it = endpoint.udp_options.find("multicast"); it != endpoint.udp_options.end())
             require(boolean(it->second) == multicast, "UDP multicast option does not match destination address");
     }
-    ReadResult read(size_t chunk) override {
-        Packet packet; packet.bytes.resize(chunk);
-        iovec data{packet.bytes.data(), packet.bytes.size()}; msghdr message{}; message.msg_iov = &data; message.msg_iovlen = 1;
+    ReadResult read(std::span<std::byte> buffer) override {
+        iovec data{buffer.data(), buffer.size()}; msghdr message{}; message.msg_iov = &data; message.msg_iovlen = 1;
         const auto n = recvmsg(fd_.value, &message, 0);
-        if (n < 0) { if (would_block()) return {ReadResult::State::would_block, {}}; system_error("UDP receive"); }
+        if (n < 0) { if (would_block()) return {ReadResult::State::would_block}; system_error("UDP receive"); }
         // Never forward a truncated datagram, and never let one stop the relay.
-        if (message.msg_flags & MSG_TRUNC) return {ReadResult::State::dropped, {}, static_cast<size_t>(n)};
-        packet.bytes.resize(static_cast<size_t>(n)); return {ReadResult::State::packet, std::move(packet)};
+        return {message.msg_flags & MSG_TRUNC ? ReadResult::State::dropped : ReadResult::State::packet, static_cast<size_t>(n)};
     }
     Write write(std::span<const std::byte> bytes) override {
         const auto n = sendto(fd_.value, bytes.data(), bytes.size(), 0, reinterpret_cast<const sockaddr*>(&peer_.storage), peer_.size);
@@ -240,9 +237,10 @@ class SrtMedium final : public Medium {
         if (error && error->rejection_code) reason += " (rejection " + std::to_string(*error->rejection_code) + ")";
         attempt_failed(reason, authentication);
     }
-    void io_failed(const srtmux::IoError& error, const srtmux::Error& detail) {
-        if (error.category == srtmux::ErrorCategory::connection_lost || error.category == srtmux::ErrorCategory::timeout || error.category == srtmux::ErrorCategory::peer_rejected) disconnected(&detail);
-        else throw std::runtime_error("SRT I/O: " + detail.message);
+    // Works from the compact error alone, so the data path never builds strings.
+    void io_failed(const srtmux::IoError& error) {
+        if (error.category == srtmux::ErrorCategory::connection_lost || error.category == srtmux::ErrorCategory::timeout || error.category == srtmux::ErrorCategory::peer_rejected) disconnected();
+        else throw std::runtime_error("SRT I/O failed (category " + std::to_string(static_cast<int>(error.category)) + ", native code " + std::to_string(error.vendor_code) + ")");
     }
     bool listen() {
         auto listener = provider_.listen_profile(profile_, address_);
@@ -324,20 +322,19 @@ public:
     bool connected() const override { return ready_; }
     bool ended() const override { return ended_; }
     size_t message_limit() const override { return payload_ ? payload_ : endpoint_.profile.transport.payload_bytes; }
-    ReadResult read(size_t chunk) override {
-        if (!ready_) return {ReadResult::State::would_block, {}};
-        Packet packet; packet.bytes.resize(chunk); srtmux::Error detail{};
-        auto result = connection_->receive_message(packet.bytes, &detail);
-        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error, detail); return {ReadResult::State::would_block, {}}; }
-        if (std::holds_alternative<srtmux::WouldBlock>(result)) return {ReadResult::State::would_block, {}};
-        packet.bytes.resize(std::get<srtmux::ReceivedMessage>(result).bytes);
-        return {ReadResult::State::packet, std::move(packet)};
+    ReadResult read(std::span<std::byte> buffer) override {
+        if (!ready_) return {ReadResult::State::would_block};
+        // The rich error record is filled only on failure; build it only then.
+        auto result = connection_->receive_message(buffer);
+        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error); return {ReadResult::State::would_block}; }
+        if (std::holds_alternative<srtmux::WouldBlock>(result)) return {ReadResult::State::would_block};
+        return {ReadResult::State::packet, std::get<srtmux::ReceivedMessage>(result).bytes};
     }
     Write write(std::span<const std::byte> bytes) override {
         if (!ready_) return Write::blocked;
         if (bytes.empty() || bytes.size() > payload_) return Write::rejected;
-        srtmux::Error detail{}; auto result = connection_->send_message(bytes, {}, &detail);
-        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error, detail); return Write::blocked; }
+        auto result = connection_->send_message(bytes, {});
+        if (auto* error = std::get_if<srtmux::IoError>(&result)) { io_failed(*error); return Write::blocked; }
         if (std::holds_alternative<srtmux::WouldBlock>(result)) return Write::blocked;
         return Write::done;
     }

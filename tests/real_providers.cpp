@@ -447,6 +447,49 @@ void npd_checks(Session& rw, Session& hv) {
         rw.check(rw.profiles->release_profile(rw.runtime, profile, &rw.error));
     }
 }
+// An idle receive must stay cheap and must never hide data that then arrives.
+// The pinned Haivision library reports "would block" through an internal C++
+// exception costing several microseconds; the adapter asks for readiness first.
+void would_block_checks(Session& s) {
+    Pair pair(s, s, config(SRTM_LIVE_MESSAGES, false));
+    std::array<uint8_t, 1316> buffer{}; auto io = record<srtm_io_error_v1>(); auto meta = record<srtm_message_info_v1>(); uint64_t n = 0;
+    double best = 1e9;
+    for (int batch = 0; batch < 5; ++batch) {
+        const auto started = Clock::now();
+        for (int i = 0; i < 20000; ++i)
+            require(s.api.receive_message(s.runtime, pair.rx, {buffer.data(), buffer.size()}, &n, &meta, &io, nullptr) == SRTM_WOULD_BLOCK, "idle receive did not report would-block");
+        best = std::min(best, std::chrono::duration<double, std::nano>(Clock::now() - started).count() / 20000);
+    }
+    std::cout << s.module.info().implementation << " idle receive " << best << " ns/call\n";
+    require(best < 1500.0, "idle receive is not cheap (above 1.5 microseconds per call)");
+    for (uint8_t round = 0; round < 10; ++round) { // Data after a blocked spell is always delivered.
+        buffer.fill(round);
+        auto until = Clock::now() + 3s;
+        while (true) {
+            const auto status = s.api.send_message(s.runtime, pair.tx, {buffer.data(), buffer.size()}, nullptr, &io, nullptr);
+            if (status == SRTM_OK) break;
+            require(status == SRTM_WOULD_BLOCK && Clock::now() < until, "send after blocked spell failed"); std::this_thread::sleep_for(1ms);
+        }
+        std::array<uint8_t, 1316> received{};
+        while (true) {
+            const auto status = s.api.receive_message(s.runtime, pair.rx, {received.data(), received.size()}, &n, &meta, &io, nullptr);
+            if (status == SRTM_OK) break;
+            require(status == SRTM_WOULD_BLOCK && Clock::now() < until, "message hidden after a blocked spell"); std::this_thread::yield();
+        }
+        require(n == 1316 && received[0] == round && received[1315] == round, "wrong message after a blocked spell");
+    }
+    // A closed peer is reported by the native call, not masked as would-block.
+    s.check(s.api.object_close(s.runtime, pair.tx, SRTM_CLOSE_ABORT, 0, &s.error));
+    auto until = Clock::now() + 8s;
+    while (true) {
+        const auto status = s.api.receive_message(s.runtime, pair.rx, {buffer.data(), buffer.size()}, &n, &meta, &io, nullptr);
+        if (status == SRTM_FAILED) {
+            require(io.category == SRTM_ERR_CONNECTION_LOST, "peer close reported with the wrong category");
+            std::cout << s.module.info().implementation << " peer close seen after " << std::chrono::duration<double>(Clock::now() - (until - 8s)).count() << " s\n"; break;
+        }
+        require(status == SRTM_WOULD_BLOCK && Clock::now() < until, "peer close masked as would-block"); std::this_thread::sleep_for(1ms);
+    }
+}
 // Regression checks for the foundation review: native wake latency, close
 // notification through per-object watcher lists, and per-slot generations.
 void review_checks(Session& a) {
@@ -538,6 +581,7 @@ int main(int argc, char** argv) {
         polling_checks(rw,hv); polling_checks(hv,rw);
         review_checks(rw); review_checks(hv);
         npd_checks(rw, hv);
+        would_block_checks(hv); would_block_checks(rw);
         reject_bad_secret(rw, hv); reject_bad_secret(hv, rw);
         for (auto* sender : {&rw, &hv}) {
             Session& receiver = sender == &rw ? hv : rw;
