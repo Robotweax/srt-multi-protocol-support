@@ -72,6 +72,7 @@ options, URI options and unsupported values fail explicitly.
 | SRT security | `passphrase`, `pbkeylen=16/24/32`; required AES-CTR when configured |
 | SRT timing | `latency`, `rcvlatency`, `peerlatency`, `conntimeo`, `peeridletimeo` |
 | SRT socket setup | `adapter`, `bind`, `port`, `mss`, `payloadsize`, `sndbuf`, `rcvbuf`, `streamid` |
+| Robotweax only | `npd=required` / `npd=if_offered`: MPEG-TS null packet deletion (experimental) |
 | Profile tuning | `maxbw`, `inputbw`, `oheadbw`, `fc`, `ipttl`, `iptos`, `ipv6only`, `kmrefreshrate`, `kmpreannounce`, `udpsndbuf`, `udprcvbuf` |
 | Required Live policies | `transtype=live`, enabled `tsbpd`/`tsbpdmode`, `messageapi`, `enforcedencryption` |
 | UDP | IPv4/IPv6 unicast; IPv4 multicast; `adapter` as numeric IPv4, `ttl`, `tos`, `buffer_size`, `multicast` |
@@ -103,6 +104,30 @@ Source-time forwarding,
 rendezvous, TCP/RTP/HTTP/RTMP, IPv6 multicast, groups, FEC/GCM and reliable SRT
 File mode are rejected. The facade's source clocks are provider-specific;
 the app does not forward a timestamp into a different clock domain.
+
+## Null packet deletion
+
+`npd` is an addition to the original's options and works on Robotweax endpoints
+only. It removes MPEG-TS null packets on the wire and restores them at the
+receiver, so a constant-bitrate stream does not spend bandwidth on stuffing; the
+relayed bytes are unchanged. Robotweax SRT classes it as experimental.
+
+```sh
+# Receiver: use it when the caller offers it, serve other callers normally.
+srt-live-transmit 'srt://:9000?mode=listener&provider=robotweax&npd=if_offered' 'udp://127.0.0.1:5000'
+# Sender: require it.
+srt-live-transmit 'udp://:5001' 'srt://receiver:9000?provider=robotweax&npd=required'
+```
+
+- `npd=required` fails the connection unless the peer negotiates it, so a
+  Robotweax caller with it cannot reach a Haivision or original listener.
+- `npd=if_offered` is a listener setting. A caller without the feature,
+  including the original application, is served with ordinary SRT.
+- On a Haivision endpoint any `npd` value other than `off` is an error.
+- Only 188-byte-aligned payloads of up to seven packets are affected, which is
+  what `-c:1316` UDP transport streams carry. Other payloads pass unchanged.
+- With `-v` the app reports whether it was negotiated, and `-pf:relay-json`
+  adds the `robotweax.npd.*` counters for that endpoint.
 
 ## End of stream and reconnects
 

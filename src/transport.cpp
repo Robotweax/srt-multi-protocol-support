@@ -320,7 +320,7 @@ Result<SourceTime> Provider::now() const {
 }
 ProfileConfig ProfileConfig::basic(TransportConfig transport) {
     auto t = record<srtmx_tuning_v1>(); t.max_bandwidth_bytes_s = -1;
-    return {std::move(transport), t};
+    return {std::move(transport), t, NullPacketDeletion::off};
 }
 Result<Profile> Provider::create_profile(const ProfileConfig& input) const {
     auto& c = *impl_->context;
@@ -329,6 +329,7 @@ Result<Profile> Provider::create_profile(const ProfileConfig& input) const {
     auto p = record<srtmx_profile_v1>(); p.base = std::get<srtm_config_v1>(cfg); p.mode = p.base.mode;
     p.cipher = p.base.encryption; p.base.encryption = 0; p.max_message_bytes = p.base.payload_bytes;
     p.fec = record<srtmx_fec_v1>(); p.tuning = input.tuning;
+    p.null_packet_deletion = static_cast<uint32_t>(input.null_packet_deletion);
     auto object = std::make_unique<Profile::Impl>(impl_->context); auto d = record<srtm_error_v1>();
     if (c.profiles->create_profile(c.runtime, &p, &object->handle, &d) != SRTM_OK) return rich_error(&c, "profile.create", d);
     return Profile(std::move(object));

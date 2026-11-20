@@ -334,6 +334,119 @@ void extension_checks(Session& s, Session& other) {
     require(successes > 0, "no concurrent telemetry observation");
     require(s.telemetry->snapshot(s.runtime, object, &metric.id, 1, &out, sizeof(out), 1, &required, &snap, &s.error) == SRTM_FAILED, "snapshot after close");
 }
+// Robotweax null packet deletion through the profile extension: explicit
+// failures where it cannot apply, bit-exact delivery where it is negotiated, and
+// unchanged service for a peer without it.
+void npd_checks(Session& rw, Session& hv) {
+    auto with_npd = [](uint32_t mode, uint32_t policy) { auto p = profile_config(config(mode, false)); p.null_packet_deletion = policy; return p; };
+    srtm_handle h = 0;
+    auto p = with_npd(SRTM_LIVE_MESSAGES, SRTMX_REQUIRED);
+    require(hv.profiles->create_profile(hv.runtime, &p, &h, &hv.error) == SRTM_FAILED && hv.error.category == SRTM_ERR_UNSUPPORTED && !h, "Haivision accepted null packet deletion");
+    p = with_npd(SRTM_FILE_STREAM, SRTMX_REQUIRED);
+    require(rw.profiles->create_profile(rw.runtime, &p, &h, &rw.error) == SRTM_FAILED && rw.error.category == SRTM_ERR_UNSUPPORTED && !h, "File profile accepted null packet deletion");
+    p = with_npd(SRTM_LIVE_MESSAGES, 3);
+    require(rw.profiles->create_profile(rw.runtime, &p, &h, &rw.error) == SRTM_FAILED && rw.error.category == SRTM_ERR_INVALID_ARGUMENT && !h, "Unknown null packet deletion policy accepted");
+    auto metric = record<srtmx_metric_info_v1>(); const char active_name[] = "robotweax.npd.active";
+    require(hv.telemetry->resolve(hv.runtime, {active_name, sizeof(active_name)-1}, &metric, &hv.error) == SRTM_FAILED && hv.error.category == SRTM_ERR_UNSUPPORTED, "Haivision resolved a Robotweax metric");
+    srtmx_feature_v1 feature = record<srtmx_feature_v1>(); const char feature_name[] = "null_packet_deletion";
+    rw.check(rw.profiles->describe(rw.runtime, {feature_name, sizeof(feature_name)-1}, &feature, &rw.error));
+    require(feature.native_built && feature.adapter_available && feature.experimental, "Robotweax feature description");
+    hv.check(hv.profiles->describe(hv.runtime, {feature_name, sizeof(feature_name)-1}, &feature, &hv.error));
+    require(!feature.native_built && !feature.adapter_available, "Haivision feature description");
+
+    auto counter = [](Session& s, srtm_handle connection, const char* name) {
+        auto info = record<srtmx_metric_info_v1>(); s.check(s.telemetry->resolve(s.runtime, {name, std::strlen(name)}, &info, &s.error));
+        auto object = record<srtmx_object_v1>(); object.kind = SRTMX_KIND_CONNECTION; object.handle = connection;
+        auto value = record<srtmx_metric_v1>(); auto snap = record<srtmx_snapshot_v1>(); uint32_t required = 0;
+        s.check(s.telemetry->snapshot(s.runtime, object, &info.id, 1, &value, sizeof(value), 1, &required, &snap, &s.error));
+        require(value.value_kind == 1, "NPD metric kind"); return value.value.u64;
+    };
+    // Seven 188-byte units per message; odd units are canonical null packets.
+    auto transport_stream = [](uint8_t seed, bool all_null) {
+        std::array<uint8_t, 1316> message{};
+        for (size_t unit = 0; unit < 7; ++unit) {
+            auto* bytes = message.data() + unit*188;
+            if (all_null || unit % 2) { bytes[0] = 0x47; bytes[1] = 0x1f; bytes[2] = 0xff; bytes[3] = 0x10; std::fill(bytes+4, bytes+188, uint8_t(0xff)); }
+            else { bytes[0] = 0x47; bytes[1] = 0x01; bytes[2] = uint8_t(unit); bytes[3] = 0x10; for (size_t i = 4; i < 188; ++i) bytes[i] = uint8_t(seed + unit*31 + i); }
+        }
+        return message;
+    };
+    struct Link { srtm_handle listener = 0, tx = 0, rx = 0; };
+    auto connect = [&](Session& caller, uint32_t caller_policy, Session& server, uint32_t server_policy) {
+        Link link; auto profile = with_npd(SRTM_LIVE_MESSAGES, server_policy); srtm_handle sp = 0, cp = 0;
+        server.check(server.profiles->create_profile(server.runtime, &profile, &sp, &server.error));
+        auto input = record<srtmx_listener_v1>(); input.local.family = SRTM_AF_IPV4; input.local.address[0] = 127; input.local.address[3] = 1;
+        input.backlog = 8; input.allowed_profiles = &sp; input.profile_count = 1; auto out = record<srtmx_object_v1>();
+        server.check(server.profiles->listen(server.runtime, &input, &out, &server.error)); link.listener = out.handle; server.objects.push_back(link.listener);
+        server.check(server.profiles->release_profile(server.runtime, sp, &server.error));
+        srtm_endpoint ep{}; server.check(server.api.listener_endpoint(server.runtime, link.listener, &ep, &server.error));
+        profile = with_npd(SRTM_LIVE_MESSAGES, caller_policy);
+        caller.check(caller.profiles->create_profile(caller.runtime, &profile, &cp, &caller.error));
+        require(caller.profiles->connect(caller.runtime, cp, nullptr, &ep, 0, &out, &caller.error) == SRTM_PENDING, caller.error.message);
+        link.tx = out.handle; caller.objects.push_back(link.tx);
+        caller.check(caller.profiles->release_profile(caller.runtime, cp, &caller.error));
+        const auto deadline = Clock::now() + 5s; bool connected = false, accepted = false;
+        while (!connected || !accepted) {
+            require(Clock::now() < deadline, "NPD connection deadline exceeded");
+            if (!link.rx) {
+                auto object = record<srtmx_object_v1>(); auto io = record<srtm_io_error_v1>();
+                if (server.profiles->accept(server.runtime, link.listener, &object, &io) == SRTM_OK) { link.rx = object.handle; server.objects.push_back(link.rx); }
+            }
+            auto info = record<srtm_connection_info_v1>(); info.terminal_error = record<srtm_error_v1>();
+            caller.check(caller.api.connection_info(caller.runtime, link.tx, &info, &caller.error));
+            require(info.state != SRTM_FAILED_STATE, "NPD caller setup failed");
+            connected = info.state == SRTM_CONNECTED;
+            if (link.rx) { server.check(server.api.connection_info(server.runtime, link.rx, &info, &server.error)); accepted = info.state == SRTM_CONNECTED; }
+            if (!connected || !accepted) std::this_thread::sleep_for(1ms);
+        }
+        return link;
+    };
+    auto exchange = [&](Session& caller, Session& server, const Link& link) {
+        std::vector<std::array<uint8_t, 1316>> sent;
+        for (uint8_t i = 0; i < 20; ++i) sent.push_back(transport_stream(i, i == 7)); // One message is all null packets.
+        sent[11].fill(0x5a); // Not a transport stream: must pass through unchanged.
+        auto io = record<srtm_io_error_v1>(); size_t delivered = 0; const auto deadline = Clock::now() + 10s;
+        for (size_t next = 0; delivered < sent.size();) {
+            require(Clock::now() < deadline, "NPD transfer deadline exceeded");
+            if (next < sent.size()) {
+                const auto status = caller.api.send_message(caller.runtime, link.tx, {sent[next].data(), sent[next].size()}, nullptr, &io, nullptr);
+                require(status == SRTM_OK || status == SRTM_WOULD_BLOCK, "NPD send failed"); if (status == SRTM_OK) ++next;
+            }
+            std::array<uint8_t, 1456> received{}; uint64_t n = 0; auto meta = record<srtm_message_info_v1>();
+            const auto status = server.api.receive_message(server.runtime, link.rx, {received.data(), received.size()}, &n, &meta, &io, nullptr);
+            require(status == SRTM_OK || status == SRTM_WOULD_BLOCK, "NPD receive failed");
+            if (status == SRTM_OK) {
+                require(n == 1316 && std::memcmp(received.data(), sent[delivered].data(), 1316) == 0, "Null packet deletion changed delivered bytes or boundaries");
+                ++delivered;
+            } else std::this_thread::sleep_for(1ms);
+        }
+    };
+    auto drop = [](Session& caller, Session& server, const Link& link) { server.drop(link.rx); caller.drop(link.tx); server.drop(link.listener); };
+    for (uint32_t listener_policy : {uint32_t(SRTMX_REQUIRED), uint32_t(SRTMX_IF_OFFERED)}) {
+        auto link = connect(rw, SRTMX_REQUIRED, rw, listener_policy);
+        require(counter(rw, link.tx, "robotweax.npd.active") == 1 && counter(rw, link.rx, "robotweax.npd.active") == 1, "Null packet deletion was not negotiated");
+        exchange(rw, rw, link);
+        // 18 messages carry three null packets each and one carries seven.
+        require(counter(rw, link.tx, "robotweax.npd.deleted_units") == 18*3 + 7, "Unexpected deleted null packet count");
+        require(counter(rw, link.rx, "robotweax.npd.restored_units") == 18*3 + 7, "Unexpected restored null packet count");
+        require(counter(rw, link.rx, "robotweax.npd.malformed_payloads") == 0, "Malformed NPD payloads reported");
+        drop(rw, rw, link);
+    }
+    { // A caller without the feature is served unchanged by an IF_OFFERED listener.
+        auto link = connect(hv, SRTMX_OFF, rw, SRTMX_IF_OFFERED);
+        require(counter(rw, link.rx, "robotweax.npd.active") == 0, "Null packet deletion active with a peer that lacks it");
+        exchange(hv, rw, link);
+        require(counter(rw, link.rx, "robotweax.npd.restored_units") == 0, "Restored packets without negotiation");
+        drop(hv, rw, link);
+    }
+    { // IF_OFFERED is not a caller policy.
+        p = with_npd(SRTM_LIVE_MESSAGES, SRTMX_IF_OFFERED); srtm_handle profile = 0;
+        rw.check(rw.profiles->create_profile(rw.runtime, &p, &profile, &rw.error));
+        srtm_endpoint ep{}; ep.family = SRTM_AF_IPV4; ep.address[0] = 127; ep.address[3] = 1; ep.port = 9; auto out = record<srtmx_object_v1>();
+        require(rw.profiles->connect(rw.runtime, profile, nullptr, &ep, 0, &out, &rw.error) == SRTM_FAILED && rw.error.category == SRTM_ERR_INVALID_ARGUMENT && !out.handle, "Caller accepted IF_OFFERED");
+        rw.check(rw.profiles->release_profile(rw.runtime, profile, &rw.error));
+    }
+}
 // Regression checks for the foundation review: native wake latency, close
 // notification through per-object watcher lists, and per-slot generations.
 void review_checks(Session& a) {
@@ -424,6 +537,7 @@ int main(int argc, char** argv) {
         extension_checks(rw, hv); extension_checks(hv, rw);
         polling_checks(rw,hv); polling_checks(hv,rw);
         review_checks(rw); review_checks(hv);
+        npd_checks(rw, hv);
         reject_bad_secret(rw, hv); reject_bad_secret(hv, rw);
         for (auto* sender : {&rw, &hv}) {
             Session& receiver = sender == &rw ? hv : rw;

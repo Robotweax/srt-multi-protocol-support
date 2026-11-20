@@ -41,6 +41,7 @@ bad = [
     ['file://con', 'srt://127.0.0.1:9000?missing-value'],
     ['file://con', 'srt://127.0.0.1:9000junk'],
     ['file://con', 'srt://127.0.0.1:9000?pbkeylen=16'],
+    ['file://con', 'srt://127.0.0.1:9000?npd=maybe'], ['file://con', 'srt://127.0.0.1:9000?npd=if_offered'],
     ['-c:1000', 'srt://127.0.0.1:9000?mode=listener', 'file://con'],  # Input chunk below the SRT payload.
 ]
 for arguments in bad:

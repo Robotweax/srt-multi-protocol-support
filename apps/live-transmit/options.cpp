@@ -168,6 +168,13 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
         else if (key == "ipttl") tuning.ip_ttl = unsigned_value(1, 255);
         else if (key == "iptos") tuning.ip_tos = unsigned_value(0, 255);
         else if (key == "ipv6only") tuning.ipv6_only = boolean(value);
+        else if (key == "npd") {
+            // Robotweax null packet deletion; the provider rejects it elsewhere.
+            if (value == "off") out.profile.null_packet_deletion = srtmux::NullPacketDeletion::off;
+            else if (value == "required") out.profile.null_packet_deletion = srtmux::NullPacketDeletion::required;
+            else if (value == "if_offered") out.profile.null_packet_deletion = srtmux::NullPacketDeletion::if_offered;
+            else throw std::invalid_argument("npd must be off, required or if_offered");
+        }
         else if (key == "kmrefreshrate") tuning.key_refresh_packets = unsigned_value(0, INT_MAX);
         else if (key == "kmpreannounce") tuning.key_preannounce_packets = unsigned_value(0, INT_MAX);
         else if (key == "udpsndbuf") tuning.send_udp_buffer_bytes = unsigned_value(1, INT_MAX);
@@ -183,6 +190,8 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
     out.listener = mode == "listener" || (mode == "default" && out.host.empty());
     if (out.listener && !c.stream_id.empty()) throw std::invalid_argument("streamid advertises caller metadata; listener admission filtering is unsupported");
     if (!out.listener && out.host.empty()) throw std::invalid_argument("SRT caller needs a host");
+    if (!out.listener && out.profile.null_packet_deletion == srtmux::NullPacketDeletion::if_offered)
+        throw std::invalid_argument("npd=if_offered is a listener policy; a caller uses npd=required");
     if (c.passphrase && !c.key_bits) c.key_bits = 128;
     if (c.key_bits && !c.passphrase) throw std::invalid_argument("pbkeylen requires a passphrase");
     if (c.key_bits && c.key_bits != 128 && c.key_bits != 192 && c.key_bits != 256) throw std::invalid_argument("pbkeylen must be 16, 24 or 32");
@@ -204,6 +213,7 @@ void print_help() {
     std::cout << R"(Multi-provider port of Haivision srt-live-transmit (SRT 1.5.7 CLI subset)
 Usage: srt-live-transmit [options] <input-uri> <output-uri>
   srt://host:port?mode=caller|listener&provider=haivision|robotweax
+  ...&npd=required|if_offered      Robotweax MPEG-TS null packet deletion (experimental)
   udp://host:port                  file://con (stdin/stdout), file:///path
   -h, -help, --help                Show supported options
   -version, --version              Show application/provider interface version

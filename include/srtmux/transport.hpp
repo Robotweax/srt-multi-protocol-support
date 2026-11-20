@@ -173,9 +173,15 @@ using ClosePolicy = std::variant<AbortClose, DrainClose>;
 
 // Immutable setup snapshot. Zero tuning fields inherit pinned native defaults;
 // max_bandwidth_bytes_s is explicit (-1 unlimited, 0 relative, positive absolute).
+// MPEG-TS null packet deletion (Robotweax, experimental). The sender removes
+// canonical null packets and the receiver restores them bit-exactly. A caller
+// uses off or required; if_offered is a listener policy that also serves peers
+// without the feature. Live only. Providers without it reject a non-off value.
+enum class NullPacketDeletion : std::uint32_t { off = 0, required = 1, if_offered = 2 };
 struct ProfileConfig {
     TransportConfig transport;
     srtmx_tuning_v1 tuning;
+    NullPacketDeletion null_packet_deletion = NullPacketDeletion::off;
     static ProfileConfig basic(TransportConfig);
 };
 class Profile final {

@@ -24,6 +24,10 @@
 #include <arpa/inet.h>
 #endif
 
+// Vendor headers that offer null packet deletion define its statistics version.
+#if !defined(PROVIDER_HAIVISION) && defined(ROBOTWEAX_SRT_NPD_STATS_VERSION)
+#define SRTMUX_NATIVE_NPD 1
+#endif
 #ifdef PROVIDER_HAIVISION
 extern "C" void* srtmux_hv_wake_create(int) noexcept;
 extern "C" int srtmux_hv_wake_set(void*, int) noexcept;
