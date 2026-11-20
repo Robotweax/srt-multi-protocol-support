@@ -27,7 +27,14 @@ polling, close races, cancellation, facade transfers and export isolation. A
 direct-versus-module-versus-facade benchmark checks throughput and process CPU per
 byte against each provider's own native baseline.
 
-The latest [Linux Release results](docs/validation/2026-11-17-linux-release/README.md)
+The latest [macOS Release results](docs/validation/2026-11-20-macos-release/README.md)
+cover the same eight combinations at source `b8a7f20` with Robotweax SRT 0.3.4 on
+one shared ARM64 desktop host. All eight captures completed, including both
+encrypted File cases: of 32 comparisons, 20 pass, 12 are inconclusive and none
+is a confirmed regression, from 384 retained samples. Qualification remains
+incomplete, and these results do not replace a Linux run.
+
+The earlier [Linux Release results](docs/validation/2026-11-17-linux-release/README.md)
 cover eight File/Live, plaintext/AES-128 and core/profile combinations at source
 `2e185a9`, using timing protocol `persistent-workers-memcmp-v2`. Of 32 comparisons,
 20 pass, four are inconclusive and eight have unavailable qualification data from
