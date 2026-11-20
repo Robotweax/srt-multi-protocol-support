@@ -15,6 +15,17 @@
 using Clock = std::chrono::steady_clock;
 using namespace std::chrono_literals;
 using srtmux::host::Module;
+#if defined(__SANITIZE_ADDRESS__)
+constexpr bool instrumented = true; // Sanitizer builds are not timed.
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+constexpr bool instrumented = true;
+#else
+constexpr bool instrumented = false;
+#endif
+#else
+constexpr bool instrumented = false;
+#endif
 void require(bool yes, const char* message) { if (!yes) throw std::runtime_error(message); }
 template<class T> T record() { T value{}; value.struct_size = sizeof(value); return value; }
 struct Session {
@@ -461,7 +472,7 @@ void would_block_checks(Session& s) {
         best = std::min(best, std::chrono::duration<double, std::nano>(Clock::now() - started).count() / 20000);
     }
     std::cout << s.module.info().implementation << " idle receive " << best << " ns/call\n";
-    require(best < 1500.0, "idle receive is not cheap (above 1.5 microseconds per call)");
+    if (!instrumented) require(best < 1500.0, "idle receive is not cheap (above 1.5 microseconds per call)");
     for (uint8_t round = 0; round < 10; ++round) { // Data after a blocked spell is always delivered.
         buffer.fill(round);
         auto until = Clock::now() + 3s;
@@ -484,7 +495,8 @@ void would_block_checks(Session& s) {
     while (true) {
         const auto status = s.api.receive_message(s.runtime, pair.rx, {buffer.data(), buffer.size()}, &n, &meta, &io, nullptr);
         if (status == SRTM_FAILED) {
-            require(io.category == SRTM_ERR_CONNECTION_LOST, "peer close reported with the wrong category");
+            if (io.category != SRTM_ERR_CONNECTION_LOST)
+                throw std::runtime_error("peer close reported with category " + std::to_string(io.category) + ", native code " + std::to_string(io.vendor_code));
             std::cout << s.module.info().implementation << " peer close seen after " << std::chrono::duration<double>(Clock::now() - (until - 8s)).count() << " s\n"; break;
         }
         require(status == SRTM_WOULD_BLOCK && Clock::now() < until, "peer close masked as would-block"); std::this_thread::sleep_for(1ms);
