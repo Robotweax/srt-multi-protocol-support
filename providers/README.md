@@ -21,7 +21,7 @@ revision and SHA-256:
 
 | Provider | Release | Source revision |
 | --- | --- | --- |
-| Robotweax | 0.3.4 | `87742777290e6a77e38672ca35701f7184b75526` |
+| Robotweax | 0.3.4 | `9b315a721eff0b0e7186fa7f97886dbd94abdb00` |
 | Haivision | 1.5.7 | `899348d8318eb9a3c5a5b6ec43c4a1114288773a` |
 
 Haivision uses the pinned 1.5.7 source **with the local

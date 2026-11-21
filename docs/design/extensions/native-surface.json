@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "robotweax_revision": "87742777290e6a77e38672ca35701f7184b75526",
+  "robotweax_revision": "9b315a721eff0b0e7186fa7f97886dbd94abdb00",
   "haivision_revision": "899348d8318eb9a3c5a5b6ec43c4a1114288773a",
   "wrapper_revision": "8f3579c",
   "scope": "All public exported names, all declared socket options including build-conditional branches, common message/statistics fields, all uninstalled source-tree C++ headers. Presence is not support or interoperability.",
@@ -2539,7 +2539,7 @@
     },
     {
       "path": "include/robotweax/srt/timing.hpp",
-      "sha256": "d88cd9a7af87ba5ac5e64144b4389b6e42e79b568d089fccf46c023ed1e21fb0",
+      "sha256": "3a6bf7b2d41d3b6f2a28002b06a01312b11700cb93db97a96d5e0bc3d6b8dbe9",
       "disposition": "uninstalled_source_cpp; private implementation only; no native C++ ABI crossing",
       "declarations": [
         "TsbpdClockState",
