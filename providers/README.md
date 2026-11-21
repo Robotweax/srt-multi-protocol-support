@@ -21,12 +21,12 @@ revision and SHA-256:
 
 | Provider | Release | Source revision |
 | --- | --- | --- |
-| Robotweax | 0.3.4 | `9b315a721eff0b0e7186fa7f97886dbd94abdb00` |
+| Robotweax | 0.3.4 | `de864c4d2397e8ca06dc1c6391bc218bf3abb223` |
 | Haivision | 1.5.7 | `899348d8318eb9a3c5a5b6ec43c4a1114288773a` |
 
 The Robotweax revision is release 0.3.4 plus the changes merged to its `main`
 up to that commit, including the packet pacer and File loss-decrease rounding
-fixes. It is not a tagged release, and the library and the module still report
+fixes and the shorter coarse-timer fallback. It is not a tagged release, and the library and the module still report
 release 0.3.4.
 
 Haivision uses the pinned 1.5.7 source **with the local

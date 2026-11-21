@@ -25,11 +25,11 @@ set(USE_OPENSSL_PC OFF CACHE BOOL "" FORCE)
 set(USE_ENCLIB openssl CACHE STRING "" FORCE)
 set(ROBOTWEAX_SRT_CRYPTO_BACKEND openssl CACHE STRING "" FORCE)
 
-set(robotweax_revision 9b315a721eff0b0e7186fa7f97886dbd94abdb00)
+set(robotweax_revision de864c4d2397e8ca06dc1c6391bc218bf3abb223)
 set(haivision_revision 899348d8318eb9a3c5a5b6ec43c4a1114288773a)
 FetchContent_Declare(robotweax
   URL https://codeload.github.com/Robotweax/srt/tar.gz/${robotweax_revision}
-  URL_HASH SHA256=c80e67d445258495fc5e6b0a663baa7858b766a5f55fbb48ffce7c59f115828c)
+  URL_HASH SHA256=cf0c47850bcf75065bf32f0e68422f26ab681b0b428bdad7f804ffbcc8f5696e)
 FetchContent_Declare(haivision
   URL https://codeload.github.com/Haivision/srt/tar.gz/${haivision_revision}
   URL_HASH SHA256=82050d96a1a55d54b423fed4ad80ddb6f30b31bf33e317ffd6726c91ee9a6170)

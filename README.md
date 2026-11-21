@@ -34,12 +34,15 @@ encrypted File cases: of 32 comparisons, 20 pass, 12 are inconclusive and none
 is a confirmed regression, from 384 retained samples. Qualification remains
 incomplete, and these results do not replace a Linux run.
 
-The [Linux container results of 21 November](docs/validation/2026-11-21-linux-container/README.md)
-repeat the matrix in a Linux virtual machine on that host with the current
-Robotweax pin, release 0.3.4 plus its later `main` changes. Of 32 comparisons,
-17 pass, 15 are inconclusive and none is a confirmed regression: all 16
-Haivision comparisons pass and 15 of 16 Robotweax comparisons are inconclusive.
-The [20 November run](docs/validation/2026-11-20-linux-container/README.md) used
+The [second Linux container matrix of 21 November](docs/validation/2026-11-21-linux-container-coarse-timer/README.md)
+repeats the eight combinations in a Linux virtual machine on that host with the
+current Robotweax pin, release 0.3.4 plus its later `main` changes. Of 32
+comparisons, 24 pass, eight are inconclusive and none is a confirmed regression.
+All eight Robotweax Live comparisons pass; Robotweax File passes two of eight
+and Haivision 14 of 16. Qualification remains incomplete. The
+[first matrix of that day](docs/validation/2026-11-21-linux-container/README.md)
+used the previous pin, without the shorter coarse-timer fallback, and the
+[20 November run](docs/validation/2026-11-20-linux-container/README.md) used
 unmodified 0.3.4.
 
 The earlier [Linux Release results](docs/validation/2026-11-17-linux-release/README.md)
