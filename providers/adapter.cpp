@@ -201,13 +201,15 @@ srtm_status error(uint32_t category, const char* message, srtm_error_v1* out,
 void clear(srtm_error_v1* out) {
     if (sized(out)) { auto size = out->struct_size; *out = {}; out->struct_size = size; }
 }
-srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr) {
+// `live_handle`: the caller holds a lease on an open object, so a native
+// "invalid socket" means the vendor already reaped it after losing the peer.
+srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr, bool live_handle = false) {
     int os = 0;
     const int code = srt_getlasterror(nullptr);
     if (code == SRT_EASYNCSND || code == SRT_EASYNCRCV) return SRTM_WOULD_BLOCK;
     srt_getlasterror(&os); // Capture OS detail only on an actual failure.
     uint32_t category = SRTM_ERR_INTERNAL;
-    if (code == SRT_EINVSOCK) category = SRTM_ERR_INVALID_HANDLE;
+    if (code == SRT_EINVSOCK) category = live_handle ? SRTM_ERR_CONNECTION_LOST : SRTM_ERR_INVALID_HANDLE;
     else if (code == SRT_EINVPARAM) category = SRTM_ERR_INVALID_ARGUMENT;
     else if (code == SRT_ECONNLOST || code == SRT_ENOCONN) category = SRTM_ERR_CONNECTION_LOST;
     else if (code == SRT_ECONNREJ) category = SRTM_ERR_PEER_REJECTED;
@@ -648,7 +650,7 @@ inline bool certainly_blocked(Entry&, unsigned) { return false; }
 #endif
 // Classifies a failed native I/O call and keeps the lane's block history.
 srtm_status io_failure(Entry& e, unsigned lane, srtm_error_v1* d, srtm_io_error_v1* io) {
-    const auto status = native_error(d, io);
+    const auto status = native_error(d, io, true);
     if (status == SRTM_WOULD_BLOCK) lane_blocked(e, lane);
     return status;
 }
@@ -692,7 +694,7 @@ srtm_status stream_io(srtm_runtime* r, srtm_handle h, const uint8_t* data, uint8
     if (!count || size > INT_MAX || (size && !(send ? data : writable))) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid stream buffer", d, io);
     if (!size) { *count = 0; return SRTM_OK; }
     int n = send ? srt_send(e->socket, reinterpret_cast<const char*>(data), int(size)) : srt_recv(e->socket, reinterpret_cast<char*>(writable), int(size));
-    if (n < 0) return native_error(d, io); // No readiness pre-check on File streams; see certainly_blocked.
+    if (n < 0) return native_error(d, io, true); // No readiness pre-check on File streams; see certainly_blocked.
     if (!send && n == 0) return SRTM_END_OF_STREAM;
     *count = static_cast<uint64_t>(n);
     if (e->accounting) (send ? e->tx : e->rx).fetch_add(static_cast<uint64_t>(n), std::memory_order_relaxed);
