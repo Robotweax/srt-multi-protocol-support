@@ -5,12 +5,12 @@
 
 namespace live_transmit {
 using Clock = std::chrono::steady_clock;
-struct Packet { std::vector<std::byte> bytes; };
+// A read fills the caller's buffer, which the relay reuses for every packet:
+// no allocation or zero-fill per read attempt.
 struct ReadResult {
-    // dropped: an input unit larger than the chunk was discarded, as lost data.
+    // dropped: an input unit larger than the buffer was discarded, as lost data.
     enum class State { packet, would_block, eof, dropped } state;
-    Packet packet;
-    size_t dropped_bytes = 0;
+    size_t bytes = 0; // Bytes written for packet; bytes discarded for dropped.
 };
 // done: accepted whole. blocked: the medium cannot take it now. rejected: this
 // packet can never be sent on this medium (for example above the SRT payload).
@@ -35,7 +35,7 @@ public:
     virtual bool pausable() const { return false; }
     // Largest unit one write accepts; 0 means no medium limit.
     virtual size_t message_limit() const { return 0; }
-    virtual ReadResult read(size_t) { throw std::logic_error("Not an input medium"); }
+    virtual ReadResult read(std::span<std::byte>) { throw std::logic_error("Not an input medium"); }
     virtual Write write(std::span<const std::byte>) { throw std::logic_error("Not an output medium"); }
     virtual void wait(std::chrono::milliseconds) = 0;
     virtual std::string statistics() { return "null"; }

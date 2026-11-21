@@ -29,7 +29,7 @@ assert run('-h').returncode == 0
 assert b'multi-SRT' in run('-version').stdout
 secret = 'public-cli-test-secret'
 bad = [
-    ['-c:-1'], ['-buffering:0'], ['-pf:xml', 'file://con', 'file://con'], ['-pf:json,compact', 'file://con', 'file://con'], ['-t:abc'], ['--provider', 'unknown'], ['-st:yes'], ['--unknown', 'value'],
+    ['-c:-1'], ['-buffering:0'], ['--coalesce-ms', '500', 'file://con', 'file://con'], ['--coalesce-ms', '-1', 'file://con', 'file://con'], ['-pf:xml', 'file://con', 'file://con'], ['-pf:json,compact', 'file://con', 'file://con'], ['-t:abc'], ['--provider', 'unknown'], ['-st:yes'], ['--unknown', 'value'],
     ['file://con', f'srt://127.0.0.1:9000?passphrase={secret}&fec=1'],
     ['file://con', 'srt://127.0.0.1:9000?mode=rendezvous'],
     ['file://con', 'srt://127.0.0.1:9000?transtype=file'],

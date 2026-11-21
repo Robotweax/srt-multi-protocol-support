@@ -89,6 +89,7 @@ Options parse_arguments(int argc, char** argv) {
         else if (key == "haivision-module") out.modules["haivision"] = value;
         else if (key == "robotweax-module") out.modules["robotweax"] = value;
         else if (key == "eof-grace-ms") out.eof_grace_ms = static_cast<int>(number(value, 0, 60000, key));
+        else if (key == "coalesce-ms") out.coalesce_ms = static_cast<int>(number(value, 0, 100, key));
         else throw std::invalid_argument("Unsupported command option: " + key);
     }
     if (out.provider != "haivision" && out.provider != "robotweax") throw std::invalid_argument("Provider must be haivision or robotweax");
@@ -234,6 +235,8 @@ Usage: srt-live-transmit [options] <input-uri> <output-uri>
   --haivision-module <path>        Explicit module path
   --robotweax-module <path>        Explicit module path
   --eof-grace-ms <milliseconds>    Best-effort Live EOF grace (default 1000)
+  --coalesce-ms <milliseconds>     Batch input wake-ups: less CPU, that much more
+                                   delay and burstier output (default 0, off)
 
 Unknown or unsupported options fail explicitly. SRT is Live-only; file endpoints
 do not give Live a reliable File-transfer contract. Lost Live tail packets are

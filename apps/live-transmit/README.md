@@ -78,6 +78,7 @@ options, URI options and unsupported values fail explicitly.
 | UDP | IPv4/IPv6 unicast; IPv4 multicast; `adapter` as numeric IPv4, `ttl`, `tos`, `buffer_size`, `multicast` |
 | Relay | `-c` chunk (default 1456), `-buffering` packets read per pass (default 10), `-a` reconnect (default yes) |
 | Timeout | `-t` seconds, `-tm:0` whole-run / `-tm:1` disconnected timer |
+| Port additions | `--coalesce-ms` input batching (default off), `--eof-grace-ms`, provider selection |
 | Diagnostics | `-q`, `-v`, `-s`/`-r` packet-frequency reports; `-statsout`, `-pf:default/json/csv` (also `json,pretty`), `-f` |
 | Accepted, not applied | `-ll`, `-lfa`, `-logfile`, `-loginternal` |
 
@@ -170,7 +171,22 @@ nothing: they are not read while the target is unavailable or full, and they are
 read in units the SRT target can carry.
 
 While both endpoints are connected the relay waits in the source's poller and
-wakes only for data or a state change. Throughput/WAN qualification of this
+wakes only for data or a state change.
+
+### CPU cost and `--coalesce-ms`
+
+By default the relay forwards each packet as soon as it arrives. That keeps
+delay and output timing tight, but one wake-up per packet costs CPU: in local
+measurements this relay used about 1.4 to 1.9 times the CPU of the original
+application at 5 and 20 Mbit/s. The original checks UDP input on the library's
+10 ms tick and so handles packets in batches.
+
+`--coalesce-ms <n>` (0 to 100, default 0) makes this relay batch as well: after
+emptying its source it stays away for `n` milliseconds. With `--coalesce-ms 10`
+its CPU use was at or below the original's in the same measurements, with every
+packet delivered. The price is up to `n` milliseconds of added delay and
+burstier output, so leave it off where timing matters more than CPU. See the
+[measurements](../../docs/validation/2026-11-20-relay-cpu.md). Throughput/WAN qualification of this
 application is separate from functional interoperability and remains pending.
 
 ## Install a bundle

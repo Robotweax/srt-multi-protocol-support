@@ -128,7 +128,12 @@ struct PollState {
     std::array<SRT_EPOLL_EVENT, 256> native_events{};
     ~PollState() { wake.reset(); if (eid >= 0) srt_epoll_release(eid); }
 };
-struct alignas(64) CallGate { std::atomic<uint32_t> count{shut_gate}; };
+struct alignas(64) CallGate {
+    std::atomic<uint32_t> count{shut_gate};
+    // Would-block history for this lane; touched only by the lane's one caller.
+    uint8_t blocked_recently = 0; // Pre-checked calls still owed after a block.
+    uint8_t run = 0;              // Successful calls since the last block, saturating.
+};
 struct Entry {
     std::atomic<uint32_t> generation{0};
     std::mutex lifecycle;
@@ -196,13 +201,15 @@ srtm_status error(uint32_t category, const char* message, srtm_error_v1* out,
 void clear(srtm_error_v1* out) {
     if (sized(out)) { auto size = out->struct_size; *out = {}; out->struct_size = size; }
 }
-srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr) {
+// `live_handle`: the caller holds a lease on an open object, so a native
+// "invalid socket" means the vendor already reaped it after losing the peer.
+srtm_status native_error(srtm_error_v1* out, srtm_io_error_v1* io = nullptr, bool live_handle = false) {
     int os = 0;
     const int code = srt_getlasterror(nullptr);
     if (code == SRT_EASYNCSND || code == SRT_EASYNCRCV) return SRTM_WOULD_BLOCK;
     srt_getlasterror(&os); // Capture OS detail only on an actual failure.
     uint32_t category = SRTM_ERR_INTERNAL;
-    if (code == SRT_EINVSOCK) category = SRTM_ERR_INVALID_HANDLE;
+    if (code == SRT_EINVSOCK) category = live_handle ? SRTM_ERR_CONNECTION_LOST : SRTM_ERR_INVALID_HANDLE;
     else if (code == SRT_EINVPARAM) category = SRTM_ERR_INVALID_ARGUMENT;
     else if (code == SRT_ECONNLOST || code == SRT_ENOCONN) category = SRTM_ERR_CONNECTION_LOST;
     else if (code == SRT_ECONNREJ) category = SRTM_ERR_PEER_REJECTED;
@@ -294,7 +301,7 @@ srtm_status publish(srtm_runtime* r, SocketOwner& socket, uint32_t mode,
     e.listener = listener; e.ready = ready; e.closed = false; e.accounting = accounting;
     e.tx.store(0); e.rx.store(0); e.poller = std::move(poller);
     e.generation.store(generation, std::memory_order_release);
-    for (auto& gate : e.calls) gate.count.store(0, std::memory_order_release);
+    for (auto& gate : e.calls) { gate.blocked_recently = 0; gate.run = 0; gate.count.store(0, std::memory_order_release); }
     ++r->objects;
     *out = (uint64_t(PROVIDER_TAG) << 48) | (uint64_t(generation) << 16) | index;
     socket.value = SRT_INVALID_SOCK;
@@ -602,6 +609,51 @@ srtm_status accept(srtm_runtime* r, srtm_handle h, srtm_handle* out, srtm_error_
     if (socket.value == SRT_INVALID_SOCK) return native_error(d);
     return publish(r, socket, e->mode, e->payload.load(), e->encryption, e->mss, false, false, e->accounting, out, d);
 }
+#ifdef PROVIDER_HAIVISION
+// The pinned Haivision library reports "would block" by throwing and catching a
+// C++ exception inside the call, which costs several microseconds; asking the
+// socket for its readiness costs tens of nanoseconds. On Live message lanes
+// that have blocked recently, ask first and answer WOULD_BLOCK without entering
+// the call. Broken sockets always go to the native call so its error is reported.
+//
+// Measured limits that shape this (macOS ARM64, eight paired blocks):
+// - File streams are excluded. A saturated File transfer blocks on about 40% of
+//   calls and is ready again within microseconds; there the exception doubles as
+//   a pause, and answering at once cost about 3% throughput because the caller
+//   then sleeps in its poller. Re-asking in a loop instead was worse (8% less
+//   throughput), since each query takes vendor locks.
+// - A block that ends a long run of successes buys no pre-checks. A saturated
+//   Live stream blocks about once in a hundred calls; checking after each such
+//   block cost more than it saved.
+constexpr uint8_t block_credit = 8;
+inline void lane_blocked(Entry& e, unsigned lane) {
+    auto& gate = e.calls[lane];
+    gate.blocked_recently = gate.run <= block_credit ? block_credit : 0;
+    gate.run = 0;
+}
+inline void lane_progressed(Entry& e, unsigned lane) {
+    auto& gate = e.calls[lane];
+    if (gate.blocked_recently) --gate.blocked_recently;
+    if (gate.run != 255) ++gate.run;
+}
+inline bool certainly_blocked(Entry& e, unsigned lane) {
+    if (!e.calls[lane].blocked_recently) return false;
+    int32_t events = 0; int size = sizeof(events);
+    if (srt_getsockflag(e.socket, SRTO_EVENT, &events, &size) != 0) return false;
+    if (events & (SRT_EPOLL_ERR | (lane == 0 ? SRT_EPOLL_OUT : SRT_EPOLL_IN))) return false;
+    lane_blocked(e, lane); return true;
+}
+#else
+inline void lane_blocked(Entry&, unsigned) {}
+inline void lane_progressed(Entry&, unsigned) {}
+inline bool certainly_blocked(Entry&, unsigned) { return false; }
+#endif
+// Classifies a failed native I/O call and keeps the lane's block history.
+srtm_status io_failure(Entry& e, unsigned lane, srtm_error_v1* d, srtm_io_error_v1* io) {
+    const auto status = native_error(d, io, true);
+    if (status == SRTM_WOULD_BLOCK) lane_blocked(e, lane);
+    return status;
+}
 Lease io_entry(srtm_runtime* r, srtm_handle h, uint32_t mode, srtm_io_error_v1* io, srtm_error_v1* d, unsigned lane) {
     if (!sized(io)) { error(SRTM_ERR_INVALID_ARGUMENT, "Invalid I/O error buffer", d); return {}; }
     auto e = lookup(r, h, lane);
@@ -613,10 +665,12 @@ srtm_status send_message(srtm_runtime* r, srtm_handle h, srtm_bytes buffer, cons
     auto e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d, 0); if (!e) return SRTM_FAILED;
     if (!buffer.data || !buffer.size || buffer.size > e->payload || (m && (!sized(m) || (m->valid_fields & ~1u) || ((m->valid_fields & 1) && m->source_time_us < 0))))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid message", d, io);
+    if (certainly_blocked(*e.entry, 0)) return SRTM_WOULD_BLOCK;
     SRT_MSGCTRL ctrl = srt_msgctrl_default;
     if (m && (m->valid_fields & 1)) ctrl.srctime = m->source_time_us;
     const int n = srt_sendmsg2(e->socket, reinterpret_cast<const char*>(buffer.data), int(buffer.size), &ctrl);
-    if (n < 0) return native_error(d, io);
+    if (n < 0) return io_failure(*e.entry, 0, d, io);
+    lane_progressed(*e.entry, 0);
     if (static_cast<uint64_t>(n) != buffer.size) return error(SRTM_ERR_INTERNAL, "Unexpected partial message send", d, io);
     if (e->accounting) e->tx.fetch_add(static_cast<uint64_t>(n), std::memory_order_relaxed);
     return SRTM_OK;
@@ -625,9 +679,11 @@ srtm_status receive_message(srtm_runtime* r, srtm_handle h, srtm_mut_bytes buffe
     auto e = io_entry(r, h, SRTM_LIVE_MESSAGES, io, d, 1); if (!e) return SRTM_FAILED;
     if (!buffer.data || buffer.size < e->payload || buffer.size > INT_MAX || !received || !sized(m))
         return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid receive buffer", d, io);
+    if (certainly_blocked(*e.entry, 1)) return SRTM_WOULD_BLOCK;
     SRT_MSGCTRL ctrl = srt_msgctrl_default;
     const int n = srt_recvmsg2(e->socket, reinterpret_cast<char*>(buffer.data), int(buffer.size), &ctrl);
-    if (n < 0) return native_error(d, io);
+    if (n < 0) return io_failure(*e.entry, 1, d, io);
+    lane_progressed(*e.entry, 1);
     *received = static_cast<uint64_t>(n); m->valid_fields = 1; m->source_time_us = ctrl.srctime;
     if (e->accounting) e->rx.fetch_add(static_cast<uint64_t>(n), std::memory_order_relaxed);
     return SRTM_OK;
@@ -638,7 +694,7 @@ srtm_status stream_io(srtm_runtime* r, srtm_handle h, const uint8_t* data, uint8
     if (!count || size > INT_MAX || (size && !(send ? data : writable))) return error(SRTM_ERR_INVALID_ARGUMENT, "Invalid stream buffer", d, io);
     if (!size) { *count = 0; return SRTM_OK; }
     int n = send ? srt_send(e->socket, reinterpret_cast<const char*>(data), int(size)) : srt_recv(e->socket, reinterpret_cast<char*>(writable), int(size));
-    if (n < 0) return native_error(d, io);
+    if (n < 0) return native_error(d, io, true); // No readiness pre-check on File streams; see certainly_blocked.
     if (!send && n == 0) return SRTM_END_OF_STREAM;
     *count = static_cast<uint64_t>(n);
     if (e->accounting) (send ? e->tx : e->rx).fetch_add(static_cast<uint64_t>(n), std::memory_order_relaxed);

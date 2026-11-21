@@ -84,7 +84,8 @@ int main(int argc, char** argv) {
         const size_t limit = target->message_limit();
         const size_t read_size = source->pausable() && limit && limit < options.chunk ? limit : options.chunk;
         bool eof = false, oversize_reported = false;
-        std::optional<Packet> held; // Only from a pausable source, only while the target is full.
+        std::vector<std::byte> buffer(read_size); // Reused for every read.
+        std::optional<std::vector<std::byte>> held; // Only from a pausable source, only while the target is full.
         std::optional<Clock::time_point> eof_since, disconnected_since;
         uint64_t read_bytes = 0, written_bytes = 0, written_packets = 0, lost_bytes = 0, reported_lost_bytes = 0;
         std::time_t loss_report_at = std::time(nullptr);
@@ -96,9 +97,9 @@ int main(int argc, char** argv) {
             stats.flush(); if (!stats) throw std::runtime_error("Statistics output failed");
         };
         // Returns false only when a pausable source should hold this packet.
-        auto deliver = [&](const Packet& packet) {
-            const auto size = packet.bytes.size();
-            const auto result = target->connected() ? target->write(packet.bytes) : Write::blocked;
+        auto deliver = [&](std::span<const std::byte> packet) {
+            const auto size = packet.size();
+            const auto result = target->connected() ? target->write(packet) : Write::blocked;
             if (result == Write::done) {
                 written_bytes += size; ++written_packets;
                 endpoint_report(*target, 1);
@@ -121,24 +122,26 @@ int main(int argc, char** argv) {
                 if (origin && now - *origin >= std::chrono::seconds(options.timeout_seconds)) break;
             }
             size_t burst = 0;
+            bool drained = false; // The source reported would-block: nothing more to read now.
             if (held) {
                 if (!deliver(*held)) { target->wait(std::chrono::milliseconds(10)); continue; }
                 held.reset(); ++burst;
             }
             // Deplete the source in bursts of up to -buffering packets per pass.
             while (!eof && !held && source->connected() && burst < options.buffering && (target->connected() || !source->pausable())) {
-                auto result = source->read(read_size);
-                if (result.state == ReadResult::State::would_block) break;
+                const auto result = source->read(buffer);
+                if (result.state == ReadResult::State::would_block) { drained = true; break; }
                 if (result.state == ReadResult::State::eof) { eof = true; break; }
                 ++burst;
                 if (result.state == ReadResult::State::dropped) {
-                    read_bytes += result.dropped_bytes; lost_bytes += result.dropped_bytes;
+                    read_bytes += result.bytes; lost_bytes += result.bytes;
                     if (!oversize_reported && !options.quiet) { std::cerr << "Input larger than the chunk size was dropped; increase -c to carry it\n"; oversize_reported = true; }
                     continue;
                 }
-                read_bytes += result.packet.bytes.size();
+                read_bytes += result.bytes;
                 endpoint_report(*source, 0);
-                if (!deliver(result.packet)) held = std::move(result.packet);
+                const std::span<const std::byte> packet(buffer.data(), result.bytes);
+                if (!deliver(packet)) held.emplace(packet.begin(), packet.end());
             }
             if (!options.quiet && lost_bytes != reported_lost_bytes) {
                 const auto wall = std::time(nullptr);
@@ -155,7 +158,13 @@ int main(int argc, char** argv) {
             }
             // Wait on the source only: it alone gates progress. The short cap
             // lets a reconnecting endpoint advance; steady state wakes rarely.
-            if (!burst) source->wait(connected ? 100ms : 10ms);
+            // A drained source is waited on at once instead of being asked again.
+            // Optional coalescing: after emptying the source, stay away from it
+            // for a moment so the next wake-up finds several packets. One
+            // wake-up per packet is the larger part of this relay's CPU cost;
+            // the price is up to that much added delay and burstier output.
+            if (options.coalesce_ms && burst && drained) std::this_thread::sleep_for(std::chrono::milliseconds(options.coalesce_ms));
+            if (!burst || drained) source->wait(connected ? 100ms : 10ms);
         }
         if (relay_format && (options.stats_every || !options.stats_path.empty())) report();
         if (options.verbose && !options.quiet) std::cerr << "Relay stopped: input_bytes=" << read_bytes << " output_bytes=" << written_bytes << " lost_bytes=" << lost_bytes << '\n';
