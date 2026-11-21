@@ -1,0 +1,778 @@
+{
+ "source_commit": "73a58b926fef08b4734ae8e15b6eec9b6338f1ad",
+ "cases": {
+  "live-none-core": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 0.725,
+   "load_peak": 1.9,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.0035241855503523284,
+     "direct_mbps_min": 843.150271901,
+     "direct_mbps_median": 850.1583460029999,
+     "direct_mbps_max": 850.88113573,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9997516446334239,
+        "low95": 0.9982653280012794,
+        "high95": 1.0020412490275945
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0120376472859685,
+        "low95": 0.926246805001648,
+        "high95": 1.1079697011114507
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.011372462158835,
+        "low95": 0.9761257256045719,
+        "high95": 1.04935581039883
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 1.0008725687518818,
+        "low95": 0.9986550432678531,
+        "high95": 1.0033826532619712
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.043471205079722,
+        "low95": 0.95631994376435,
+        "high95": 1.145209432301748
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0343436928372323,
+        "low95": 0.9981155861381873,
+        "high95": 1.0754794863824693
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.0039002857739567232,
+     "direct_mbps_min": 823.207922057,
+     "direct_mbps_median": 827.7343436900001,
+     "direct_mbps_max": 832.448383294,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.001924250301182,
+        "low95": 0.9976521953134856,
+        "high95": 1.0057002600368963
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9980851204010138,
+        "low95": 0.9801074315839197,
+        "high95": 1.0154011651683883
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0095874496052066,
+        "low95": 1.00243233611462,
+        "high95": 1.0174538294065871
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.002319030364069,
+        "low95": 0.9998468824581362,
+        "high95": 1.0046882291123957
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0059892690555976,
+        "low95": 0.983035483694448,
+        "high95": 1.0355541440008924
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.029736202552953,
+        "low95": 1.0146869942562047,
+        "high95": 1.0538622939176725
+       }
+      }
+     }
+    }
+   }
+  },
+  "live-none-profiles": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 0.855,
+   "load_peak": 1.63,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.0019448133401039568,
+     "direct_mbps_min": 837.722380549,
+     "direct_mbps_median": 841.0519375215,
+     "direct_mbps_max": 842.538878093,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 1.0000126590314034,
+        "low95": 0.9991434191527633,
+        "high95": 1.0010481735860637
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.122965643527022,
+        "low95": 0.9017921052359454,
+        "high95": 1.420493610280025
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0620358610527727,
+        "low95": 0.9856143674573229,
+        "high95": 1.153127124186896
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9994364746908014,
+        "low95": 0.9981748629985062,
+        "high95": 1.0006918695999023
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0351746858353408,
+        "low95": 0.9067289348812512,
+        "high95": 1.1780357252089435
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.049601413489109,
+        "low95": 1.0108558842085857,
+        "high95": 1.0902169211147825
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.0025016475746366244,
+     "direct_mbps_min": 826.007243487,
+     "direct_mbps_median": 830.0858455924999,
+     "direct_mbps_max": 832.29250302,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9975843919700147,
+        "low95": 0.995243991153802,
+        "high95": 1.000227050337957
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9902054376887055,
+        "low95": 0.9860728070823818,
+        "high95": 0.9937706181520568
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0002980486389046,
+        "low95": 0.9953057633588066,
+        "high95": 1.0054634423813087
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9980212859505261,
+        "low95": 0.9946893879901529,
+        "high95": 1.0018045903599402
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9980824434885491,
+        "low95": 0.9921202173540712,
+        "high95": 1.0039354887932235
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0244011304471767,
+        "low95": 1.0190099668025487,
+        "high95": 1.029476923237545
+       }
+      }
+     }
+    }
+   }
+  },
+  "live-aes128-core": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 1.15,
+   "load_peak": 2.11,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.002562759953075163,
+     "direct_mbps_min": 829.907286231,
+     "direct_mbps_median": 835.143554139,
+     "direct_mbps_max": 836.680977689,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9997324155689348,
+        "low95": 0.9969947280658908,
+        "high95": 1.0022872171032726
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.069209509795504,
+        "low95": 0.8858343316673014,
+        "high95": 1.2849434644098863
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0436340751308142,
+        "low95": 0.9684941919947362,
+        "high95": 1.1242580821254176
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9984098015077607,
+        "low95": 0.9952830337480695,
+        "high95": 1.0013851823813331
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.2085560924336665,
+        "low95": 1.007099500838488,
+        "high95": 1.5000236131372713
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0975742456166904,
+        "low95": 1.017144763005657,
+        "high95": 1.1991615345332336
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.0023242082493995556,
+     "direct_mbps_min": 818.632053396,
+     "direct_mbps_median": 820.648891766,
+     "direct_mbps_max": 824.44663838,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.999081363888554,
+        "low95": 0.9966637366723804,
+        "high95": 1.0011951197599231
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9952359376968695,
+        "low95": 0.9927572889025446,
+        "high95": 0.997532874882385
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0021527279704907,
+        "low95": 0.9968893803528017,
+        "high95": 1.006899191037246
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9999866664894238,
+        "low95": 0.9975502592757464,
+        "high95": 1.0026976447080322
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9965069128962412,
+        "low95": 0.9943377172163489,
+        "high95": 0.9990402254943268
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.017347728874818,
+        "low95": 1.0118666188876007,
+        "high95": 1.0234642728955325
+       }
+      }
+     }
+    }
+   }
+  },
+  "live-aes128-profiles": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 1.3,
+   "load_peak": 1.88,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.0028371261006969457,
+     "direct_mbps_min": 829.708866675,
+     "direct_mbps_median": 834.712016021,
+     "direct_mbps_max": 837.745586806,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9998379259042725,
+        "low95": 0.9971877764932918,
+        "high95": 1.0027670747064774
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.2618311515672602,
+        "low95": 0.9407741777789882,
+        "high95": 1.647861020668333
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.1198623511254902,
+        "low95": 0.9945568221061057,
+        "high95": 1.2522701189504442
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9988155895056368,
+        "low95": 0.9965566875194746,
+        "high95": 1.0013697229234033
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0319302227095528,
+        "low95": 0.8779043778270567,
+        "high95": 1.194108197661234
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0340871750688365,
+        "low95": 0.9658451687111295,
+        "high95": 1.0987566497858374
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.004776010650927653,
+     "direct_mbps_min": 814.305304847,
+     "direct_mbps_median": 821.0957468335,
+     "direct_mbps_max": 824.662674105,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9986407404624951,
+        "low95": 0.995416104083901,
+        "high95": 1.0022650004828917
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9971984019309639,
+        "low95": 0.9954833750933949,
+        "high95": 0.9990856481437276
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0050995073318536,
+        "low95": 0.999611018510311,
+        "high95": 1.0115760670000313
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9990765529162987,
+        "low95": 0.9945086726420822,
+        "high95": 1.0039789011064888
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.999395729886897,
+        "low95": 0.9958680406105088,
+        "high95": 1.0030619736968647
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0189594449836414,
+        "low95": 1.0102198305138503,
+        "high95": 1.0276116031407387
+       }
+      }
+     }
+    }
+   }
+  },
+  "file-none-core": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 2.755,
+   "load_peak": 3.37,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.04128679661230514,
+     "direct_mbps_min": 4768.91009956,
+     "direct_mbps_median": 5193.341824519999,
+     "direct_mbps_max": 5484.78608085,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9737583183625631,
+        "low95": 0.9181187188810638,
+        "high95": 1.0207350573311293
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0164871392646821,
+        "low95": 0.9925211587246595,
+        "high95": 1.0387724032395451
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0376169453098132,
+        "low95": 0.9951741525426329,
+        "high95": 1.079761260548294
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9205230265470956,
+        "low95": 0.8471276911161022,
+        "high95": 0.9859895370635989
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0312203041325998,
+        "low95": 0.9955503830916471,
+        "high95": 1.069794474182499
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0634443350477762,
+        "low95": 1.013285962718859,
+        "high95": 1.11541647001032
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.004368929219999322,
+     "direct_mbps_min": 4045.63091017,
+     "direct_mbps_median": 4075.15390245,
+     "direct_mbps_max": 4102.17679917,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0040479887336273,
+        "low95": 0.9991008038813828,
+        "high95": 1.0108083157146743
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9955090143553075,
+        "low95": 0.9903346296879827,
+        "high95": 0.9994754226933213
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0116545837204673,
+        "low95": 1.004521313647048,
+        "high95": 1.018069496385217
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0012517849122542,
+        "low95": 0.9965332432319076,
+        "high95": 1.005474056540345
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9999690034564315,
+        "low95": 0.9969360095986309,
+        "high95": 1.002738963997231
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0285373679952456,
+        "low95": 1.0262903276904891,
+        "high95": 1.030605119980066
+       }
+      }
+     }
+    }
+   }
+  },
+  "file-none-profiles": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 2.54,
+   "load_peak": 3.05,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.02258621425284312,
+     "direct_mbps_min": 5013.18289993,
+     "direct_mbps_median": 5129.49019788,
+     "direct_mbps_max": 5363.37884159,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9724790711393447,
+        "low95": 0.9411882967477839,
+        "high95": 1.0060434225951433
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.017865667955399,
+        "low95": 0.9922095779151792,
+        "high95": 1.0454681573472913
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.041506485266783,
+        "low95": 1.001189299609422,
+        "high95": 1.0855961100171159
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9703095260575908,
+        "low95": 0.9237386170990814,
+        "high95": 1.0172482919558823
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.012593659605255,
+        "low95": 0.9843743290063522,
+        "high95": 1.0398985200020678
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0417430581574472,
+        "low95": 0.996610453866555,
+        "high95": 1.0859677439241768
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.007114974168552895,
+     "direct_mbps_min": 4022.36158388,
+     "direct_mbps_median": 4051.1465758450004,
+     "direct_mbps_max": 4101.67557607,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0001842451302998,
+        "low95": 0.9984220725437336,
+        "high95": 1.0023000714563093
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0006768544055997,
+        "low95": 0.9979306208627835,
+        "high95": 1.003215500514268
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0194249018883095,
+        "low95": 1.0148562273370048,
+        "high95": 1.0237306123711323
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 0.9984200250812758,
+        "low95": 0.9954789867492811,
+        "high95": 1.0023707758377942
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0043602149018276,
+        "low95": 1.0003004503923545,
+        "high95": 1.0071741132044232
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0293963016995231,
+        "low95": 1.0223063947491684,
+        "high95": 1.0348357482998813
+       }
+      }
+     }
+    }
+   }
+  },
+  "file-aes128-core": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 2.9,
+   "load_peak": 3.36,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.13152911353539173,
+     "direct_mbps_min": 3844.37679969,
+     "direct_mbps_median": 5140.418425625,
+     "direct_mbps_max": 5378.81407444,
+     "paths": {
+      "module": {
+       "decision": "inconclusive_controls",
+       "throughput": {
+        "ratio": 1.0924398383271259,
+        "low95": 1.0041656358734088,
+        "high95": 1.2046722202953588
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9614542517306766,
+        "low95": 0.9177980790965853,
+        "high95": 1.0045420289117253
+       },
+       "application_cpu_per_byte": {
+        "ratio": 0.9489191823730805,
+        "low95": 0.8846951438093262,
+        "high95": 1.0171666952971818
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_controls",
+       "throughput": {
+        "ratio": 1.1086969313532058,
+        "low95": 1.0216479213806047,
+        "high95": 1.2173692989553189
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9485701743667262,
+        "low95": 0.901073429777244,
+        "high95": 0.9908643068120799
+       },
+       "application_cpu_per_byte": {
+        "ratio": 0.9331014177827225,
+        "low95": 0.8621997519768965,
+        "high95": 0.9980104689302651
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.0035162030181793663,
+     "direct_mbps_min": 1518.0578538,
+     "direct_mbps_median": 1528.08929536,
+     "direct_mbps_max": 1533.34141997,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0000728491765425,
+        "low95": 0.9971849258093576,
+        "high95": 1.0025944855772366
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.001046366655714,
+        "low95": 0.9986261126790346,
+        "high95": 1.0037817016310342
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.005767535646218,
+        "low95": 0.9990069589159355,
+        "high95": 1.0134452917991588
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0017369563243,
+        "low95": 0.9982869923564642,
+        "high95": 1.0056970118192314
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0000305586877338,
+        "low95": 0.9965163455949898,
+        "high95": 1.0032878143336763
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.012587855207038,
+        "low95": 1.0077748938775388,
+        "high95": 1.0166495425809592
+       }
+      }
+     }
+    }
+   }
+  },
+  "file-aes128-profiles": {
+   "status": "complete",
+   "samples": 48,
+   "load_median": 2.84,
+   "load_peak": 3.59,
+   "providers": {
+    "robotweax": {
+     "direct_cv": 0.03750032196001377,
+     "direct_mbps_min": 4761.92261647,
+     "direct_mbps_median": 5275.347370205,
+     "direct_mbps_max": 5358.11473657,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0091347374887456,
+        "low95": 0.9934054377026486,
+        "high95": 1.0247808284105775
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0031197301982107,
+        "low95": 0.9914177015611314,
+        "high95": 1.0140215089854219
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.015600042620653,
+        "low95": 0.9943518903393881,
+        "high95": 1.0345869364672158
+       }
+      },
+      "facade": {
+       "decision": "inconclusive_interval",
+       "throughput": {
+        "ratio": 0.9716087398618012,
+        "low95": 0.9271315345107733,
+        "high95": 1.0166532327908544
+       },
+       "process_cpu_per_byte": {
+        "ratio": 1.0303424853556686,
+        "low95": 0.9921640498024138,
+        "high95": 1.0724974410795485
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0663315364394415,
+        "low95": 1.0020438410771848,
+        "high95": 1.1380466230309398
+       }
+      }
+     }
+    },
+    "haivision": {
+     "direct_cv": 0.00641693544754554,
+     "direct_mbps_min": 1505.28849591,
+     "direct_mbps_median": 1525.93185152,
+     "direct_mbps_max": 1535.02233811,
+     "paths": {
+      "module": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0028511423180122,
+        "low95": 0.9984384545473198,
+        "high95": 1.0084051549193283
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.998508394347103,
+        "low95": 0.9939220723098892,
+        "high95": 1.0017076350444647
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0086353302052251,
+        "low95": 1.0012084949115143,
+        "high95": 1.0150954454906747
+       }
+      },
+      "facade": {
+       "decision": "pass_measured_profile",
+       "throughput": {
+        "ratio": 1.0010983041071047,
+        "low95": 0.9963076038025822,
+        "high95": 1.0060438260408369
+       },
+       "process_cpu_per_byte": {
+        "ratio": 0.9997006073053691,
+        "low95": 0.9956782994760581,
+        "high95": 1.0033826226797016
+       },
+       "application_cpu_per_byte": {
+        "ratio": 1.0103243781029385,
+        "low95": 1.0033361996047736,
+        "high95": 1.0166908123210678
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "decisions": {
+  "inconclusive_interval": 13,
+  "pass_measured_profile": 17,
+  "inconclusive_controls": 2
+ }
+}
