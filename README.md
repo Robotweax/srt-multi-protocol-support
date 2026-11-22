@@ -45,6 +45,11 @@ used the previous pin, without the shorter coarse-timer fallback, and the
 [20 November run](docs/validation/2026-11-20-linux-container/README.md) used
 unmodified 0.3.4.
 
+A [follow-up on the inconclusive Robotweax File comparisons](docs/validation/2026-11-22-file-variance.md)
+with 32 pairs found no shortfall of the abstraction (0.993 and 0.998 of native).
+The variation is in Robotweax SRT's File congestion control on that host and
+also affects the native baseline, so those comparisons stay unqualified there.
+
 The earlier [Linux Release results](docs/validation/2026-11-17-linux-release/README.md)
 cover eight File/Live, plaintext/AES-128 and core/profile combinations at source
 `2e185a9`, using timing protocol `persistent-workers-memcmp-v2`. Of 32 comparisons,
