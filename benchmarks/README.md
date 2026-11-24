@@ -9,7 +9,7 @@ python3 benchmarks/compare.py --build build-real --mib 2048 --runs 8 \
   --warmup-mib 256 --probe-calls 20000 --wait poll --output results.json
 ```
 
-The runner always includes Robotweax 0.3.4 and Haivision 1.5.7, each using direct
+The runner always includes Robotweax 0.3.5 and Haivision 1.5.7, each using direct
 native calls, the module C ABI, and the C++ facade. Each trial is a fresh process
 with one local IPv4 connection, accounting disabled, 8 MiB transport buffers, and
 identical transport options. The default profile is a plaintext File stream with

@@ -121,7 +121,7 @@ typedef struct srtm_provider_info_v1 {
     uint32_t struct_size;
     uint32_t reserved;
     srtm_text implementation;  /* "robotweax" or "haivision" */
-    srtm_text release;         /* "0.3.4" or "1.5.7" */
+    srtm_text release;         /* "0.3.5" or "1.5.7" */
     srtm_text source_revision;
     srtm_text build_fingerprint;
     srtm_text target_triple;

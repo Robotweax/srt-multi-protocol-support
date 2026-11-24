@@ -18,18 +18,20 @@ set(ENABLE_ENCRYPTION ON CACHE BOOL "" FORCE)
 set(ENABLE_BONDING OFF CACHE BOOL "" FORCE)
 set(ENABLE_AEAD_API_PREVIEW OFF CACHE BOOL "" FORCE)
 set(ENABLE_MAXREXMITBW OFF CACHE BOOL "" FORCE)
-foreach(feature IN ITEMS ACP1 CONTROLLERS FILTERS HYBRID_CONTROL MOBILE_PACING)
+foreach(feature IN ITEMS ACP1 CONTROLLERS FILTERS HYBRID_CONTROL)
   set(ROBOTWEAX_SRT_ENABLE_EXPERIMENTAL_${feature} OFF CACHE BOOL "" FORCE)
 endforeach()
+# Older builds forced this deprecated flag off, which selects legacy pacing in 0.3.5.
+unset(ROBOTWEAX_SRT_ENABLE_EXPERIMENTAL_MOBILE_PACING CACHE)
 set(USE_OPENSSL_PC OFF CACHE BOOL "" FORCE)
 set(USE_ENCLIB openssl CACHE STRING "" FORCE)
 set(ROBOTWEAX_SRT_CRYPTO_BACKEND openssl CACHE STRING "" FORCE)
 
-set(robotweax_revision de864c4d2397e8ca06dc1c6391bc218bf3abb223)
+set(robotweax_revision fd9dac31675b12022579d28a748abb0839004cde)
 set(haivision_revision 899348d8318eb9a3c5a5b6ec43c4a1114288773a)
 FetchContent_Declare(robotweax
   URL https://codeload.github.com/Robotweax/srt/tar.gz/${robotweax_revision}
-  URL_HASH SHA256=cf0c47850bcf75065bf32f0e68422f26ab681b0b428bdad7f804ffbcc8f5696e)
+  URL_HASH SHA256=ada688772f19d541386c1ac80145603a05723708c90bbf8520fb5cc83028349c)
 FetchContent_Declare(haivision
   URL https://codeload.github.com/Haivision/srt/tar.gz/${haivision_revision}
   URL_HASH SHA256=82050d96a1a55d54b423fed4ad80ddb6f30b31bf33e317ffd6726c91ee9a6170)
@@ -70,7 +72,7 @@ foreach(provider IN ITEMS robotweax haivision)
       set(robotweax_wake close-notify)
     endif()
     set(features "profiles-v1,native-telemetry-v1,experimental-off,aead-off,bonding-off,maxrexmitbw-off,static-srt,shared-openssl,basic-io,native-poller,native-wake=${robotweax_wake}")
-    set(release 0.3.4)
+    set(release 0.3.5)
     set(tag 0x5257)
     target_include_directories(srtmux_${provider} PRIVATE "${robotweax_SOURCE_DIR}/include/srt")
     target_link_libraries(srtmux_${provider} PRIVATE robotweax_srt)

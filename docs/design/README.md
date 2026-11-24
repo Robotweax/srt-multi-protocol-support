@@ -1,7 +1,7 @@
 # Dual provider SRT interface draft
 
 Status: design draft v0.2, 16 November 2026. These are declaration-only design
-artifacts for private modules containing Robotweax SRT 0.3.4 and Haivision SRT
+artifacts for private modules containing Robotweax SRT 0.3.5 and Haivision SRT
 1.5.7. The transport facade is implemented in `include/srtmux/transport.hpp`. The provider ABI is now exercised by
 the host module loader and test fixtures; it is not a released ABI. Real I/O, polling and concurrent abort-close adapters now exist. Their narrower implemented profile, including
 caller-serialized lifecycle operations and explicit unsupported features, is
