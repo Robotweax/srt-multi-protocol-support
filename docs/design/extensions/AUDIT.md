@@ -25,7 +25,8 @@ This is exhaustive public C surface coverage and a feature-family disposition
 of source-only C++. It is not a promise to wrap every private C++ method or a
 new behavioral conformance test. The latter headers are not installed by the
 native build; internal protocol/session/crypto/controller classes stay private.
-All source hashes and exact revisions are recorded. Verify with:
+The inventory records the exact source revisions and hashes for this historical
+audit. To verify them, use source trees at those revisions.
 
 ```sh
 python3 tools/check_native_audit.py --robotweax /path/to/pinned/robotweax --haivision /path/to/pinned/haivision

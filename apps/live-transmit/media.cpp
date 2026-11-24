@@ -391,7 +391,7 @@ public:
 }
 srtmux::Provider Providers::get(const std::string& name) {
     auto found = loaded_.find(name);
-    if (found == loaded_.end()) found = loaded_.emplace(name, checked(runtime_.load({module_path(options_, name), name, name == "haivision" ? "1.5.7" : "0.3.4", {}}))).first;
+    if (found == loaded_.end()) found = loaded_.emplace(name, checked(runtime_.load({module_path(options_, name), name, name == "haivision" ? "1.5.7" : "0.3.5", {}}))).first;
     return found->second;
 }
 std::unique_ptr<Medium> open_medium(EndpointOptions endpoint, bool input, const Options& options, Providers& providers) {

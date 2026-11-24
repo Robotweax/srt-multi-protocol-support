@@ -6,7 +6,7 @@ import sys
 rw_direct, hv_direct, module, facade, rw_module, hv_module = sys.argv[1:]
 commands = [[rw_direct, '1'], [hv_direct, '1']]
 for binary in [module, facade]:
-    commands += [[binary, '1', rw_module, 'robotweax', '0.3.4'],
+    commands += [[binary, '1', rw_module, 'robotweax', '0.3.5'],
                  [binary, '1', hv_module, 'haivision', '1.5.7']]
 for command in commands:
     for side in ['1', '2']:

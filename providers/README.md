@@ -21,13 +21,12 @@ revision and SHA-256:
 
 | Provider | Release | Source revision |
 | --- | --- | --- |
-| Robotweax | 0.3.4 | `de864c4d2397e8ca06dc1c6391bc218bf3abb223` |
+| Robotweax | 0.3.5 | `fd9dac31675b12022579d28a748abb0839004cde` |
 | Haivision | 1.5.7 | `899348d8318eb9a3c5a5b6ec43c4a1114288773a` |
 
-The Robotweax revision is release 0.3.4 plus the changes merged to its `main`
-up to that commit, including the packet pacer and File loss-decrease rounding
-fixes and the shorter coarse-timer fallback. It is not a tagged release, and the library and the module still report
-release 0.3.4.
+The Robotweax revision is the tagged 0.3.5 release. It reports Robotweax
+version 0.3.5 and compatible SRT API 1.5.7.
+[Robotweax SRT 0.3.5 release notes](https://github.com/Robotweax/srt/releases/tag/v0.3.5).
 
 Haivision uses the pinned 1.5.7 source **with the local
 [KM/close lifetime patch](haivision-1.5.7-km-close.patch)**. Its asynchronous KMREQ

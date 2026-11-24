@@ -13,7 +13,7 @@ args = parser.parse_args()
 rw, hv, module, facade, rw_module, hv_module = args.artifacts
 commands = [[rw, '1' if args.faults else '4'], [hv, '1' if args.faults else '4']]
 for binary in [module, facade]:
-    commands += [[binary, '1' if args.faults else '4', rw_module, 'robotweax', '0.3.4'],
+    commands += [[binary, '1' if args.faults else '4', rw_module, 'robotweax', '0.3.5'],
                  [binary, '1' if args.faults else '4', hv_module, 'haivision', '1.5.7']]
 if args.api:
     first = {'direct': 0, 'module': 2, 'facade': 4}[args.api]
