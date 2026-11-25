@@ -1,0 +1,18 @@
+srt-live-transmit fuer Windows x64
+=================================
+ZIP vollstaendig entpacken. PowerShell im entpackten Ordner oeffnen.
+Eine Build-Umgebung oder separate OpenSSL-Installation ist nicht erforderlich.
+
+Empfaenger zuerst starten (SRT-Port 9000, UDP-Ausgabe auf Port 6000):
+.\bin\srt-live-transmit.exe -v --provider robotweax "srt://:9000?mode=listener" "udp://127.0.0.1:6000"
+
+Sender starten (UDP-Quelle an Port 5000 einspeisen):
+.\bin\srt-live-transmit.exe -v --provider haivision "udp://:5000" "srt://127.0.0.1:9000?mode=caller"
+
+Bei getrennten Rechnern 127.0.0.1 im SRT-Caller durch die Adresse des
+Empfaengers ersetzen. Der Listener muss auf UDP-Port 9000 erreichbar sein.
+Fuer die Gegenrichtung beide Prozesse beenden und die Provider tauschen.
+-v zeigt den geladenen Provider und seine Version. Beenden mit Strg+C.
+
+Providerstand: Haivision 1.5.7 mit den Kompatibilitaetspatches des
+Multi-SRT-Projekts und Robotweax 0.3.5. Weitere Optionen: -h

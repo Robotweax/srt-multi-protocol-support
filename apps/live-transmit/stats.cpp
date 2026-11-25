@@ -80,7 +80,12 @@ StatValue difference(StatValue now, const StatValue& before) {
 std::string timestamp() {
     using namespace std::chrono;
     const auto now = system_clock::now(); const std::time_t seconds = system_clock::to_time_t(now);
-    std::tm local{}; localtime_r(&seconds, &local);
+    std::tm local{};
+#ifdef _WIN32
+    localtime_s(&local, &seconds);
+#else
+    localtime_r(&seconds, &local);
+#endif
     std::ostringstream out;
     out << std::put_time(&local, "%FT%T.") << std::setfill('0') << std::setw(6)
         << duration_cast<microseconds>(now.time_since_epoch() - duration_cast<std::chrono::seconds>(now.time_since_epoch())).count()

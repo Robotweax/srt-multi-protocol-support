@@ -1,21 +1,33 @@
 #include "media.hpp"
+#include <thread>
+#ifdef _WIN32
+#define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#else
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <poll.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 #include <array>
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
-#include <netdb.h>
-#include <poll.h>
 #include <sstream>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 namespace live_transmit {
 namespace {
 [[noreturn]] void system_error(const char* operation) {
+#ifdef _WIN32
+    throw std::system_error(WSAGetLastError(), std::system_category(), operation);
+#else
     throw std::runtime_error(std::string(operation) + ": " + std::strerror(errno));
+#endif
 }
 void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 struct Address { sockaddr_storage storage{}; socklen_t size = 0; };
@@ -46,6 +58,9 @@ srtmux::Endpoint numeric(const Address& address) {
     require(inet_ntop(AF_INET6, &ip.sin6_addr, text.data(), text.size()) != nullptr, "IPv6 conversion failed");
     return {text.data(), ntohs(ip.sin6_port), ip.sin6_scope_id};
 }
+#ifdef _WIN32
+#include "windows_media.inc"
+#else
 struct Descriptor {
     int value = -1, original_flags = -1; bool borrowed = false;
     ~Descriptor() {
@@ -100,15 +115,21 @@ public:
     bool pausable() const override { return input_; }
     void wait(std::chrono::milliseconds timeout) override { fd_.wait(input_, timeout); }
 };
+using SocketDescriptor = Descriptor;
+#endif
 class UdpMedium final : public Medium {
-    Descriptor fd_; Address peer_; bool input_;
+    SocketDescriptor fd_; Address peer_; bool input_;
 public:
     UdpMedium(const EndpointOptions& endpoint, bool input) : peer_(resolve(endpoint.host, endpoint.port, input)), input_(input) {
         fd_.value = socket(peer_.storage.ss_family, SOCK_DGRAM, 0);
+#ifdef _WIN32
+        if (fd_.value == INVALID_SOCKET) system_error("UDP socket");
+#else
         if (fd_.value < 0) system_error("UDP socket");
+#endif
         fd_.nonblocking();
         auto set = [&](int level, int option, auto value) {
-            if (setsockopt(fd_.value, level, option, &value, sizeof(value)) < 0) system_error("UDP socket option");
+            if (setsockopt(fd_.value, level, option, reinterpret_cast<const char*>(&value), sizeof(value)) < 0) system_error("UDP socket option");
         };
         auto option = [&](const char* name, int fallback, int low, int high) {
             const auto found = endpoint.udp_options.find(name);
@@ -123,7 +144,7 @@ public:
             if (const auto it = endpoint.udp_options.find("adapter"); it != endpoint.udp_options.end())
                 require(inet_pton(AF_INET, it->second.c_str(), &adapter) == 1, "UDP adapter must be a numeric IPv4 address");
             set(IPPROTO_IP, IP_TTL, option("ttl", 64, 1, 255));
-            set(IPPROTO_IP, IP_TOS, option("tos", 0, 0, 255));
+            if (endpoint.udp_options.contains("tos")) set(IPPROTO_IP, IP_TOS, option("tos", 0, 0, 255));
             if (input) {
                 set(SOL_SOCKET, SO_REUSEADDR, 1);
                 auto local = group; if (multicast) local.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -135,7 +156,7 @@ public:
                 if (::bind(fd_.value, reinterpret_cast<const sockaddr*>(&local), sizeof(local)) < 0) system_error("UDP bind");
                 if (multicast) { ip_mreq membership{group.sin_addr, adapter}; set(IPPROTO_IP, IP_ADD_MEMBERSHIP, membership); }
             } else if (multicast) {
-                set(IPPROTO_IP, IP_MULTICAST_TTL, static_cast<unsigned char>(option("ttl", 1, 1, 255)));
+                set(IPPROTO_IP, IP_MULTICAST_TTL, option("ttl", 1, 1, 255));
                 if (adapter.s_addr) set(IPPROTO_IP, IP_MULTICAST_IF, adapter);
             } else if (adapter.s_addr) {
                 sockaddr_in local{}; local.sin_family = AF_INET; local.sin_addr = adapter;
@@ -149,25 +170,42 @@ public:
             if (IN6_IS_ADDR_MULTICAST(&group.sin6_addr)) throw std::invalid_argument("IPv6 multicast is not implemented");
             if (endpoint.udp_options.contains("adapter")) throw std::invalid_argument("IPv6 UDP adapter selection is not implemented");
             set(IPPROTO_IPV6, IPV6_UNICAST_HOPS, option("ttl", 64, 1, 255));
-            set(IPPROTO_IPV6, IPV6_TCLASS, option("tos", 0, 0, 255));
+            if (endpoint.udp_options.contains("tos")) set(IPPROTO_IPV6, IPV6_TCLASS, option("tos", 0, 0, 255));
             if (input && ::bind(fd_.value, reinterpret_cast<const sockaddr*>(&peer_.storage), peer_.size) < 0) system_error("UDP bind");
         }
         if (const auto it = endpoint.udp_options.find("multicast"); it != endpoint.udp_options.end())
             require(boolean(it->second) == multicast, "UDP multicast option does not match destination address");
     }
     ReadResult read(std::span<std::byte> buffer) override {
+#ifdef _WIN32
+        const int n = recv(fd_.value, reinterpret_cast<char*>(buffer.data()), static_cast<int>(buffer.size()), 0);
+        if (n == SOCKET_ERROR) {
+            const auto error = WSAGetLastError();
+            if (error == WSAEMSGSIZE) return {ReadResult::State::dropped, buffer.size()};
+            if (would_block() || error == WSAECONNRESET) return {ReadResult::State::would_block};
+            system_error("UDP receive");
+        }
+        return {ReadResult::State::packet, static_cast<size_t>(n)};
+#else
         iovec data{buffer.data(), buffer.size()}; msghdr message{}; message.msg_iov = &data; message.msg_iovlen = 1;
         const auto n = recvmsg(fd_.value, &message, 0);
         if (n < 0) { if (would_block()) return {ReadResult::State::would_block}; system_error("UDP receive"); }
         // Never forward a truncated datagram, and never let one stop the relay.
         return {message.msg_flags & MSG_TRUNC ? ReadResult::State::dropped : ReadResult::State::packet, static_cast<size_t>(n)};
+#endif
     }
     Write write(std::span<const std::byte> bytes) override {
-        const auto n = sendto(fd_.value, bytes.data(), bytes.size(), 0, reinterpret_cast<const sockaddr*>(&peer_.storage), peer_.size);
+        const auto n = sendto(fd_.value, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()), 0, reinterpret_cast<const sockaddr*>(&peer_.storage), peer_.size);
         if (n < 0) {
             // A full buffer or a transient ICMP report loses this datagram only.
+#ifdef _WIN32
+            const auto error = WSAGetLastError();
+            if (would_block() || error == WSAENOBUFS || error == WSAECONNRESET || error == WSAECONNREFUSED) return Write::blocked;
+            if (error == WSAEMSGSIZE) return Write::rejected;
+#else
             if (would_block() || errno == ENOBUFS || errno == ECONNREFUSED) return Write::blocked;
             if (errno == EMSGSIZE) return Write::rejected;
+#endif
             system_error("UDP send");
         }
         require(static_cast<size_t>(n) == bytes.size(), "Partial UDP datagram write");
@@ -340,7 +378,7 @@ public:
     }
     void wait(std::chrono::milliseconds timeout) override {
         // A poller with no registration cannot wait until the next retry.
-        if (!connection_registration_ && !listener_registration_) { (void)poll(nullptr, 0, static_cast<int>(timeout.count())); return; }
+        if (!connection_registration_ && !listener_registration_) { std::this_thread::sleep_for(timeout); return; }
         std::array<srtmux::Event, 2> events{}; srtmux::Error detail{};
         auto result = poller_.wait(events, timeout, &detail);
         if (std::holds_alternative<srtmux::IoError>(result)) throw std::runtime_error("SRT poll: " + detail.message);

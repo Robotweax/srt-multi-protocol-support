@@ -3,7 +3,12 @@
 #include <climits>
 #include <iostream>
 #include <set>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -22,8 +27,14 @@ bool boolean(std::string_view text) {
     throw std::invalid_argument("Invalid boolean option");
 }
 static std::filesystem::path executable_path() {
+#ifdef _WIN32
+    std::wstring buffer(32768, L'\0');
+    const DWORD count = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (!count || count == buffer.size()) throw std::runtime_error("Executable location unavailable");
+    buffer.resize(count);
+    return buffer;
+#elif defined(__APPLE__)
     std::vector<char> buffer(4096);
-#ifdef __APPLE__
     uint32_t size = static_cast<uint32_t>(buffer.size());
     if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
         buffer.resize(size);
@@ -31,6 +42,7 @@ static std::filesystem::path executable_path() {
     }
     return std::filesystem::canonical(buffer.data());
 #else
+    std::vector<char> buffer(4096);
     const auto size = readlink("/proc/self/exe", buffer.data(), buffer.size());
     if (size <= 0 || static_cast<size_t>(size) == buffer.size()) throw std::runtime_error("Use --provider-dir: executable location unavailable");
     return std::filesystem::path(std::string(buffer.data(), static_cast<size_t>(size)));
@@ -109,6 +121,14 @@ Options parse_arguments(int argc, char** argv) {
     return out;
 }
 EndpointOptions parse_endpoint(const std::string& text, bool input, const Options& options) {
+#ifdef _WIN32
+    if (text.find("://") == std::string::npos && std::filesystem::path(text).has_root_name()) {
+        EndpointOptions file{};
+        file.kind = EndpointOptions::Kind::file;
+        file.path = text;
+        return file;
+    }
+#endif
     UriParser uri(text);
     EndpointOptions out{};
     out.host = uri.host(); out.path = uri.path(); out.provider = options.provider;
@@ -208,7 +228,11 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
 std::filesystem::path module_path(const Options& options, std::string_view provider) {
     const auto found = options.modules.find(std::string(provider));
     if (found != options.modules.end()) return found->second;
+#ifdef _WIN32
+    return options.provider_dir / ("srtmux_" + std::string(provider) + ".dll");
+#else
     return options.provider_dir / ("libsrtmux_" + std::string(provider) + ".so");
+#endif
 }
 void print_help() {
     std::cout << R"(Multi-provider port of Haivision srt-live-transmit (SRT 1.5.7 CLI subset)

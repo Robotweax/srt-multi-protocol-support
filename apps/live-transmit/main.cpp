@@ -7,8 +7,14 @@
 #include <fstream>
 #include <iostream>
 #include <thread>
+#ifdef _WIN32
+#define NOMINMAX
+#include <winsock2.h>
+#include <windows.h>
+#else
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 namespace {
 volatile std::sig_atomic_t interrupted = 0;
@@ -40,6 +46,25 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument("Statistics and media must use different files");
         }
         if (!options.stats_path.empty()) {
+#ifdef _WIN32
+            if (std::filesystem::exists(options.stats_path)) {
+                if (!std::filesystem::is_regular_file(options.stats_path)) throw std::invalid_argument("Statistics output must be a regular file");
+                HANDLE stats_handle = CreateFileW(std::filesystem::path(options.stats_path).c_str(), 0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr);
+                if (stats_handle == INVALID_HANDLE_VALUE) throw std::runtime_error("Cannot inspect statistics file");
+                BY_HANDLE_FILE_INFORMATION stats_info{};
+                bool inspected = GetFileInformationByHandle(stats_handle, &stats_info) != 0;
+                CloseHandle(stats_handle);
+                if (!inspected) throw std::runtime_error("Cannot identify statistics file");
+                for (auto id : {STD_INPUT_HANDLE, STD_OUTPUT_HANDLE}) {
+                    BY_HANDLE_FILE_INFORMATION info{};
+                    if (GetFileInformationByHandle(GetStdHandle(id), &info) &&
+                        info.dwVolumeSerialNumber == stats_info.dwVolumeSerialNumber &&
+                        info.nFileIndexHigh == stats_info.nFileIndexHigh && info.nFileIndexLow == stats_info.nFileIndexLow)
+                        throw std::invalid_argument("Statistics output aliases a console media descriptor");
+                }
+            }
+#else
             struct stat stats_info{};
             if (stat(options.stats_path.c_str(), &stats_info) == 0) {
                 if (!S_ISREG(stats_info.st_mode)) throw std::invalid_argument("Statistics output must be a regular file");
@@ -49,8 +74,16 @@ int main(int argc, char** argv) {
                         throw std::invalid_argument("Statistics output aliases a console media descriptor");
                 }
             }
+#endif
         }
-        std::signal(SIGINT, stop); std::signal(SIGTERM, stop); std::signal(SIGPIPE, SIG_IGN);
+        std::signal(SIGINT, stop); std::signal(SIGTERM, stop);
+#ifdef _WIN32
+        WSADATA winsock{};
+        if (WSAStartup(MAKEWORD(2, 2), &winsock)) throw std::runtime_error("Winsock startup failed");
+        struct WinsockCleanup { ~WinsockCleanup() { WSACleanup(); } } cleanup;
+#else
+        std::signal(SIGPIPE, SIG_IGN);
+#endif
         Providers providers(options);
         auto source = open_medium(std::move(input), true, options, providers);
         auto target = open_medium(std::move(output), false, options, providers);

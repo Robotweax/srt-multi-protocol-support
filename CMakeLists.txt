@@ -34,11 +34,8 @@ if(SRTMUX_BUILD_PROVIDERS)
   add_subdirectory(providers)
 endif()
 
-option(SRTMUX_BUILD_APPLICATIONS "Build multi-provider srt-live-transmit (POSIX)" ${UNIX})
+option(SRTMUX_BUILD_APPLICATIONS "Build multi-provider srt-live-transmit" ${UNIX})
 if(SRTMUX_BUILD_APPLICATIONS)
-  if(NOT UNIX)
-    message(FATAL_ERROR "The relay application's OS I/O backend currently requires POSIX")
-  endif()
   add_subdirectory(apps/live-transmit apps)
 endif()
 

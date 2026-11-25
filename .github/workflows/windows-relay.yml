@@ -18,7 +18,7 @@ jobs:
         shell: pwsh
         run: |
           $ssl = 'C:/Program Files/OpenSSL'
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSRTMUX_BUILD_PROVIDERS=ON -DBUILD_TESTING=OFF "-DOPENSSL_ROOT_DIR=$ssl" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSRTMUX_BUILD_PROVIDERS=ON -DSRTMUX_BUILD_APPLICATIONS=ON -DBUILD_TESTING=OFF "-DOPENSSL_ROOT_DIR=$ssl" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build build --parallel 4
       - name: Package and verify extracted ZIP
