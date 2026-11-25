@@ -1,0 +1,30 @@
+name: Portable Windows x64 relay
+on:
+  push:
+    branches: [dev/windows-x64-relay]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build pinned providers and application
+        shell: pwsh
+        run: |
+          $ssl = 'C:/Program Files/OpenSSL'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSRTMUX_BUILD_PROVIDERS=ON -DBUILD_TESTING=OFF "-DOPENSSL_ROOT_DIR=$ssl" -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build --parallel 4
+      - name: Package and verify extracted ZIP
+        run: tools/windows_bundle.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-windows-x64
+          path: dist/*.zip
+          if-no-files-found: error
