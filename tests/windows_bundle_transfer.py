@@ -1,13 +1,18 @@
 """Verify the extracted Windows release with UDP -> SRT -> UDP on loopback."""
 from contextlib import ExitStack
 from pathlib import Path
+import hashlib
 import socket
 import subprocess
 import sys
 import tempfile
 import time
 
-app = Path(sys.argv[1]).resolve() / "bin/srt-live-transmit.exe"
+root = Path(sys.argv[1]).resolve()
+app = root / "bin/srt-live-transmit.exe"
+for line in (root / "SHA256SUMS").read_text().splitlines():
+    digest, name = line.split("  ", 1)
+    assert hashlib.sha256((root / name).read_bytes()).hexdigest() == digest, name
 
 
 def free_port():

@@ -156,7 +156,12 @@ public:
                 if (::bind(fd_.value, reinterpret_cast<const sockaddr*>(&local), sizeof(local)) < 0) system_error("UDP bind");
                 if (multicast) { ip_mreq membership{group.sin_addr, adapter}; set(IPPROTO_IP, IP_ADD_MEMBERSHIP, membership); }
             } else if (multicast) {
-                set(IPPROTO_IP, IP_MULTICAST_TTL, option("ttl", 1, 1, 255));
+                const auto ttl = option("ttl", 1, 1, 255);
+#ifdef _WIN32
+                set(IPPROTO_IP, IP_MULTICAST_TTL, static_cast<DWORD>(ttl));
+#else
+                set(IPPROTO_IP, IP_MULTICAST_TTL, static_cast<unsigned char>(ttl));
+#endif
                 if (adapter.s_addr) set(IPPROTO_IP, IP_MULTICAST_IF, adapter);
             } else if (adapter.s_addr) {
                 sockaddr_in local{}; local.sin_family = AF_INET; local.sin_addr = adapter;
