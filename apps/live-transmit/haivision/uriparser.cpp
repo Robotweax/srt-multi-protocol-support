@@ -132,7 +132,7 @@ unsigned short int UriParser::portno(void) const
         int i = atoi(m_port.c_str());
         if ( i <= 0 || i > 65535 )
             return 0;
-        return i;
+        return static_cast<unsigned short>(i);
     }
     catch (...)
     {

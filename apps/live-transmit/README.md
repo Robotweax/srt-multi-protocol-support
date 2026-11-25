@@ -17,7 +17,9 @@ cmake --build build --parallel
 build/apps/srt-live-transmit -h
 ```
 
-`SRTMUX_BUILD_APPLICATIONS` defaults on for POSIX platforms. It can also build
+`SRTMUX_BUILD_APPLICATIONS` defaults on for POSIX platforms. For Windows x64, use the portable ZIP, or enable the application explicitly with `-DSRTMUX_BUILD_APPLICATIONS=ON` in an x64 MSVC environment. The ZIP includes both provider DLLs and their non-system dependencies.
+
+The relay can also build
 without `SRTMUX_BUILD_PROVIDERS`; UDP/file workflows then need no provider or
 vendor download. For SRT, the default provider is Haivision. Modules are loaded
 from the build's `providers` directory or the installed `lib/srtmux/providers`

@@ -108,20 +108,20 @@ std::string StatsWriter::bandwidth(const NativeStats& now) const {
     return out.str();
 }
 std::string StatsWriter::stats(const NativeStats& now, std::size_t side) {
-    auto& previous_ = this->previous_[side]; auto& have_previous_ = this->have_previous_[side];
+    auto& previous = previous_[side]; auto& have_previous = have_previous_[side];
     NativeStats shown = now;
-    if (interval_ && have_previous_ && previous_.id == now.id) {
+    if (interval_ && have_previous && previous.id == now.id) {
         for (std::size_t i = 0; i < stat_count; ++i)
-            if (rows[i].counter) shown.values[i] = difference(now.values[i], previous_.values[i]);
+            if (rows[i].counter) shown.values[i] = difference(now.values[i], previous.values[i]);
         // Upstream rates cover the interval since the previous report.
-        const double seconds = (now.values[time].number() - previous_.values[time].number()) / 1000.0;
+        const double seconds = (now.values[time].number() - previous.values[time].number()) / 1000.0;
         if (seconds > 0) {
             shown.values[send_rate].kind = shown.values[receive_rate].kind = StatValue::Kind::real;
             shown.values[send_rate].f = shown.values[bytes_sent].number() * 8.0 / seconds / 1000000.0;
             shown.values[receive_rate].f = shown.values[bytes_received].number() * 8.0 / seconds / 1000000.0;
         }
     }
-    previous_ = now; have_previous_ = true;
+    previous = now; have_previous = true;
     const auto& v = shown.values;
     std::ostringstream out;
     if (format_ == StatsFormat::json) {

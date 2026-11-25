@@ -137,6 +137,11 @@ EndpointOptions parse_endpoint(const std::string& text, bool input, const Option
         out.kind = EndpointOptions::Kind::file;
         if (!query.empty() || (!out.host.empty() && out.host != "con" && out.host != "console")) throw std::invalid_argument("Unsupported file URI authority or query");
         if (out.host == "con" || out.host == "console") out.path = "-";
+#ifdef _WIN32
+        // A local drive in a file URI is written as file:///C:/path.
+        if (out.path.size() >= 4 && out.path[0] == '/' && out.path[2] == ':' && out.path[3] == '/')
+            out.path.erase(0, 1);
+#endif
         if (out.path.empty()) throw std::invalid_argument("File URI needs a path or file://con");
         return out;
     }

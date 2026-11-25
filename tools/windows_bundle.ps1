@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
-cmake --install build --prefix package --component SrtMux
+cmake --install build --prefix build/package --component SrtMux
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
-$bin = (Resolve-Path package/bin).Path
+$bin = (Resolve-Path build/package/bin).Path
 $redist = Join-Path $env:VCToolsRedistDir 'x64/Microsoft.VC143.CRT'
 $ssl = 'C:/Program Files/OpenSSL'
 $search = @($redist, "$ssl/bin", "$ssl", "$env:WINDIR/System32")
 $queue = [Collections.Generic.Queue[string]]::new()
-Get-ChildItem package -Recurse -Include *.exe,*.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
+Get-ChildItem build/package -Recurse -Include *.exe,*.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
 while ($queue.Count) {
     $binary = $queue.Dequeue()
     $imports = dumpbin /nologo /dependents $binary
@@ -25,13 +25,13 @@ while ($queue.Count) {
         $queue.Enqueue("$bin/$dll")
     }
 }
-Copy-Item tools/WINDOWS-DE.txt package
-Copy-Item tools/OpenSSL-LICENSE.txt package/share/srtmux/licenses/
-python tools/write_bundle_manifest.py package
+Copy-Item tools/WINDOWS-DE.txt build/package
+Copy-Item tools/OpenSSL-LICENSE.txt build/package/share/srtmux/licenses/
+python tools/write_bundle_manifest.py build/package
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 New-Item dist -ItemType Directory -Force | Out-Null
 $zip = "dist/srt-live-transmit-windows-x64.zip"
-Compress-Archive -Path package/* -DestinationPath $zip
+Compress-Archive -Path build/package/* -DestinationPath $zip
 Expand-Archive $zip "$env:RUNNER_TEMP/Relay Test"
 $python = (Get-Command python).Source
 $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"

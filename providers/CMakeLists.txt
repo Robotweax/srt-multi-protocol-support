@@ -102,6 +102,7 @@ foreach(provider IN ITEMS robotweax haivision)
     # CallGate and Entry intentionally isolate hot atomics on cache-line boundaries.
     target_compile_options(srtmux_${provider} PRIVATE /wd4324)
     if(provider STREQUAL "haivision")
+      target_compile_definitions(srtmux_haivision PRIVATE NOMINMAX)
       target_include_directories(srtmux_haivision SYSTEM PRIVATE "${haivision_SOURCE_DIR}/common")
     endif()
   endif()

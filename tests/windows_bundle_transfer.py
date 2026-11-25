@@ -38,11 +38,25 @@ def wait_for(item, message):
     raise RuntimeError(log.read_text(errors="replace"))
 
 
+with tempfile.TemporaryDirectory() as directory:
+    cwd = Path(directory)
+    payload = bytes(range(256)) * 32
+    source = cwd / "sample input.ts"
+    capture = cwd / "sample output.ts"
+    source.write_bytes(payload)
+    capture.write_bytes(payload * 2)
+    subprocess.run([app, str(source), str(capture)], cwd=cwd, check=True, timeout=8)
+    assert capture.read_bytes() == payload
+    result = subprocess.run([app, "file://con", "file://con"], cwd=cwd,
+                            input=payload, capture_output=True, check=True, timeout=8)
+    assert result.stdout == payload
+
 for sender, receiver in [("haivision", "robotweax"), ("robotweax", "haivision")]:
     for encryption in ["", "&passphrase=windows-test-secret&pbkeylen=16"]:
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             cwd = Path(directory)
             sink = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
+            sink.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 512 * 1024)
             sink.bind(("127.0.0.1", 0))
             sink.settimeout(4)
             port = free_port()
