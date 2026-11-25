@@ -11,8 +11,7 @@ bin/srt-live-transmit --provider robotweax \
 ```
 
 The binary and provider modules must match your operating system and CPU.
-The provider modules require the system OpenSSL runtime used by their build;
-OpenSSL is not bundled. Media uses stdout only for an explicit console target;
+The portable Windows x64 ZIP includes its OpenSSL runtime and a German quick start in WINDOWS-DE.txt. Other bundles require the system OpenSSL runtime used by their build. Media uses stdout only for an explicit console target;
 diagnostics use stderr.
 
 See [application documentation](share/srtmux/README.md) for the supported CLI,

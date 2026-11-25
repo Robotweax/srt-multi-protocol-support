@@ -20,6 +20,7 @@ root.joinpath('BUILD-INFO.json').write_text(json.dumps({
     'system': platform.system(), 'machine': platform.machine(),
 }, indent=2) + '\n')
 files = sorted(path for path in root.rglob('*') if path.is_file() and path != manifest)
-assert root.joinpath('bin/srt-live-transmit').is_file(), 'Bundle executable missing'
+executable = 'srt-live-transmit.exe' if sys.platform == 'win32' else 'srt-live-transmit'
+assert root.joinpath('bin', executable).is_file(), 'Bundle executable missing'
 manifest.write_text(''.join(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.relative_to(root).as_posix() + '\n' for path in files))
 print(f'Sealed {len(files)} bundle files')

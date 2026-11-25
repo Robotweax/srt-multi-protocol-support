@@ -98,6 +98,13 @@ foreach(provider IN ITEMS robotweax haivision)
   elseif(UNIX)
     target_link_options(srtmux_${provider} PRIVATE "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/exports.elf" "LINKER:-Bsymbolic")
   endif()
+  if(MSVC)
+    # CallGate and Entry intentionally isolate hot atomics on cache-line boundaries.
+    target_compile_options(srtmux_${provider} PRIVATE /wd4324)
+    if(provider STREQUAL "haivision")
+      target_include_directories(srtmux_haivision SYSTEM PRIVATE "${haivision_SOURCE_DIR}/common")
+    endif()
+  endif()
   srtmux_warnings(srtmux_${provider})
 endforeach()
 
